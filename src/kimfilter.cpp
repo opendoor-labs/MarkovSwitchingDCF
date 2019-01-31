@@ -26,14 +26,14 @@ arma::mat ss_prob(arma::mat mat){
   arma::mat A1(mat.n_rows, mat.n_rows);
   
   arma::mat A = join_cols(A1.eye() - mat, One);
-  arma::mat B = pinv(A.t() * A) * A.t();
+  arma::mat B = inv(A.t() * A) * A.t();
   return B * join_cols(Zero, One.submat(0, 0, 0, 0));;
 }
 
 // Likelihood function for the Kim filter
 // [[Rcpp::export]]
 arma::mat v_prob(arma::mat EV, arma::mat HE){
-  return (1/sqrt(det(HE)))*exp(-0.5*EV.t() * pinv(HE) * EV); //Pr[Yt|S_t,Yt-1]
+  return (1/sqrt(det(HE)))*exp(-0.5*EV.t() * inv(HE) * EV); //Pr[Yt|S_t,Yt-1]
 }
 
 // [[Rcpp::export]]
@@ -115,7 +115,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Mu, arma::mat Ft,
 
         //Kalman gain
         //K^{i,j} = P^{i,j}_{t|t-1} %*% t(Hm) %*% solve(F^{i,j}_{t|t-1})
-        Kss.slice(s) = P_tlss(s).slice(i) * Ht.t() * pinv(F_TLss.slice(s));
+        Kss.slice(s) = P_tlss(s).slice(i) * Ht.t() * inv(F_TLss.slice(s));
 
         //Updated predictions of unobserved component
         //B^{i,j}_{t|t} = B^{i,j}_{t|t-1} + K^{i,j} %*% N^{i,j}_{t|t-1}

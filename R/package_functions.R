@@ -478,7 +478,11 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
 ms_dcf_filter = function(y, model, plot = F){
   
   #Get the data
-  y = y[, c(model$panelID, model$timeID, model$vars), with = F]
+  if(any(grepl(model$panelID, colnames(y)))){
+    y = y[, c(model$panelID, model$timeID, model$vars), with = F]
+  }else{
+    y[, "panelid" := "panel"]
+  }
   
   #Log the relevant variables
   if(length(model$log.vars) > 0){
@@ -506,7 +510,7 @@ ms_dcf_filter = function(y, model, plot = F){
   doSNOW::registerDoSNOW(cl)
   invisible(snow::clusterCall(cl, function(x) .libPaths(x), .libPaths()))
   `%fun%` = foreach::`%dopar%`
-  uc = foreach::foreach(i = unique(yy_s[, c(model$panelID), with = F][[1]]), .packages = c("data.table"), .export = c("SSmodel_ms")) %fun% {
+  uc = foreach::foreach(i = unique(yy_s[, c(model$panelID), with = F][[1]]), .packages = c("data.table", "MASS"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother", "ss_prob", "v_prob")) %fun% {
     yti = t(yy_s[eval(parse(text = model$panelID)) == i, colnames(yy_s)[!colnames(yy_s) %in% c(model$panelID, model$timeID)], with = F])
     ans = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
     
@@ -561,64 +565,82 @@ ms_dcf_filter = function(y, model, plot = F){
   names(uc) = unique(yy_s[, c(model$panelID), with = F][[1]])
   
   if(plot == T){
-    for(i in unique(y[, c(model$panelID), with = F][[1]])){  
-      toplot1 = melt(y[eval(parse(text = model$panelID)) == i, ], id.vars = c(model$panelID, model$timeID))
-      toplot1 = merge(toplot1, toplot1[eval(parse(text = model$timeID)) == min(eval(parse(text = model$timeID))), c("variable", "value"), with = F], by = c("variable"), all.x = T, all.y = F, suffixes = c("", "_start"))
-      toplot1[, "value2" := value - (value_start - mean(toplot1[eval(parse(text = model$timeID)) == min(eval(parse(text = model$timeID))), ]$value))*9/10, by = "variable"]
-      g1 = ggplot2::ggplot(toplot1) + 
-        ggplot2::ggtitle(paste(i, "Data Series"), subtitle = "Levels") + 
-        ggplot2::scale_y_continuous(name = "Log Levels (Intercept Adjusted)") + 
-        ggplot2::scale_x_date(name = "") + 
-        ggplot2::geom_line(ggplot2::aes(x = eval(parse(text = model$timeID)), y = value2, group = variable, color = variable)) + 
-        ggplot2::theme_minimal() + ggplot2::theme(legend.position = "bottom") + ggplot2::guides(color = ggplot2::guide_legend(title = NULL))
-      
-      toplot2 = melt(yy_s[eval(parse(text = model$panelID)) == i, ], id.vars = c(model$panelID, model$timeID))
-      g2 = ggplot2::ggplot(toplot2) + 
-        ggplot2::ggtitle(paste(i, "Data Series"), subtitle = "Differenced & Standardized") + 
-        ggplot2::scale_y_continuous(name = "Differences") + 
-        ggplot2::scale_x_date(name = "") + 
-        ggplot2::geom_hline(yintercept = 0, color = "black") + 
-        ggplot2::geom_line(ggplot2::aes(x = eval(parse(text = model$timeID)), y = value, group = variable, color = variable)) + 
-        ggplot2::theme_minimal() + ggplot2::theme(legend.position = "bottom") + ggplot2::guides(color = ggplot2::guide_legend(title = NULL))
-      
-      toplot3 = melt(uc[[i]], id.vars = c(model$panelID, model$timeID))
-      d_range1 = range(toplot3[variable == "Ctt", ]$value, na.rm = T)
-      p_range1 = range(toplot3[variable %in% colnames(uc[[i]])[grepl("Pr_", colnames(uc[[i]]))], ]$value, na.rm = T)
-      toplot3[variable %in% colnames(uc[[i]])[grepl("Pr_", colnames(uc[[i]]))], "value" := (value - p_range1[1])/diff(p_range1) * diff(d_range1) + d_range1[1], by = "variable"]
-      g3 = ggplot2::ggplot() +  
-        ggplot2::ggtitle(paste(i, "Dynamic Common Factor"), subtitle = "Levels") + 
-        ggplot2::scale_y_continuous(name = "Dynamic Common Factor", limits = range(toplot3[variable == "Ctt", ]$value, na.rm = T), 
-                           sec.axis = ggplot2::sec_axis(name = "Probability of State (%)", ~((. - d_range1[1])/diff(d_range1) * diff(p_range1) + p_range1[1]) * 100)) + 
-        ggplot2::scale_x_date(name = "") +
-        ggplot2::geom_ribbon(data = toplot3[variable %in% colnames(uc[[i]])[grepl("Pr_d|Pr_u", colnames(uc[[i]]), ignore.case = T)], ], 
-                             ggplot2::aes(x = eval(parse(text = model$timeID)), ymin = d_range1[1], ymax = value, group = variable, fill = variable), alpha = 0.5) + 
-        ggplot2::geom_line(data = toplot3[variable == "Ctt", ], 
-                           ggplot2::aes(x = eval(parse(text = model$timeID)), y = value, group = variable, color = variable), color = "black") + 
-        ggplot2::theme_minimal() + ggplot2::theme(legend.position = "bottom") + 
-        ggplot2::guides(color = ggplot2::guide_legend(title = NULL), fill = ggplot2::guide_legend(title = NULL))
-      
-      toplot4 = melt(uc[[i]], id.vars = c(model$panelID, model$timeID))
-      d_range2 = range(toplot4[variable == "ctt", ]$value, na.rm = T)
-      p_range2 = range(toplot4[variable %in% colnames(uc[[i]])[grepl("Pr_", colnames(uc[[i]]))], ]$value, na.rm = T)
-      toplot4[variable %in% colnames(uc[[i]])[grepl("Pr_", colnames(uc[[i]]))], "value" := (value - p_range2[1])/diff(p_range2) * diff(d_range2) + d_range2[1], by = "variable"]
-      g4 = ggplot2::ggplot() +  
-        ggplot2::ggtitle(paste(i, "Dynamic Common Factor"), subtitle = "Differenced") + 
-        ggplot2::scale_y_continuous(name = "Dynamic Common Factor", limits = range(toplot4[variable == "ctt", ]$value, na.rm = T), 
-                           sec.axis = ggplot2::sec_axis(name = "Probability of State (%)", ~((. - d_range2[1])/diff(d_range2) * diff(p_range2) + p_range2[1]) * 100)) + 
-        ggplot2::scale_x_date(name = "") +
-        ggplot2::geom_ribbon(data = toplot4[variable %in% colnames(uc[[i]])[grepl("Pr_d|Pr_u", colnames(uc[[i]]), ignore.case = T)], ], 
-                             ggplot2::aes(x = eval(parse(text = model$timeID)), ymin = d_range2[1], ymax = value, group = variable, fill = variable), alpha = 0.5) + 
-        ggplot2::geom_hline(yintercept = 0, color = "grey") + 
-        ggplot2::geom_line(data = toplot4[variable == "ctt", ], 
-                           ggplot2::aes(x = eval(parse(text = model$timeID)), y = value, group = variable, color = variable), color = "black") + 
-        ggplot2::theme_minimal() + ggplot2::theme(legend.position = "bottom") + 
-        ggplot2::guides(color = ggplot2::guide_legend(title = NULL), fill = ggplot2::guide_legend(title = NULL))
-      
-      gridExtra::grid.arrange(g1, g2, g3, g4, layout_matrix = matrix(c(1, 3, 2, 4), nrow = 2))
-      Sys.sleep(0.1)
+    for(j in c("filter", "smooth")){
+      for(i in unique(y[, c(model$panelID), with = F][[1]])){  
+        toplot1 = melt(y[eval(parse(text = model$panelID)) == i, ], id.vars = c(model$panelID, model$timeID))
+        toplot1 = merge(toplot1, toplot1[eval(parse(text = model$timeID)) == min(eval(parse(text = model$timeID))), c("variable", "value"), with = F], by = c("variable"), all.x = T, all.y = F, suffixes = c("", "_start"))
+        toplot1[, "value2" := value - (value_start - mean(toplot1[eval(parse(text = model$timeID)) == min(eval(parse(text = model$timeID))), ]$value))*9/10, by = "variable"]
+        g1 = ggplot2::ggplot(toplot1) + 
+          ggplot2::ggtitle(paste(i, "Data Series"), subtitle = "Levels") + 
+          ggplot2::scale_y_continuous(name = "Log Levels (Intercept Adjusted)") + 
+          ggplot2::scale_x_date(name = "") + 
+          ggplot2::geom_line(ggplot2::aes(x = eval(parse(text = model$timeID)), y = value2, group = variable, color = variable)) + 
+          ggplot2::theme_minimal() + ggplot2::theme(legend.position = "bottom") + ggplot2::guides(color = ggplot2::guide_legend(title = NULL))
+        
+        toplot2 = melt(yy_s[eval(parse(text = model$panelID)) == i, ], id.vars = c(model$panelID, model$timeID))
+        g2 = ggplot2::ggplot(toplot2) + 
+          ggplot2::ggtitle(paste(i, "Data Series"), subtitle = "Differenced & Standardized") + 
+          ggplot2::scale_y_continuous(name = "Differences") + 
+          ggplot2::scale_x_date(name = "") + 
+          ggplot2::geom_hline(yintercept = 0, color = "black") + 
+          ggplot2::geom_line(ggplot2::aes(x = eval(parse(text = model$timeID)), y = value, group = variable, color = variable)) + 
+          ggplot2::theme_minimal() + ggplot2::theme(legend.position = "bottom") + ggplot2::guides(color = ggplot2::guide_legend(title = NULL))
+        
+        toplot3 = melt(uc[[i]][[j]], id.vars = c(model$panelID, model$timeID))
+        d_range1 = range(toplot3[variable == "Ctt", ]$value, na.rm = T)
+        p_range1 = range(toplot3[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_", colnames(uc[[i]][[j]]))], ]$value, na.rm = T)
+        toplot3[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_", colnames(uc[[i]][[j]]))], "value" := (value - p_range1[1])/diff(p_range1) * diff(d_range1) + d_range1[1], by = "variable"]
+        g3 = ggplot2::ggplot() +  
+          ggplot2::ggtitle(paste(i, "Dynamic Common Factor"), subtitle = "Differenced") + 
+          ggplot2::scale_y_continuous(name = "Dynamic Common Factor", limits = range(toplot3[variable == "Ctt", ]$value, na.rm = T), 
+                                      sec.axis = ggplot2::sec_axis(name = "Probability of State (%)", ~((. - d_range1[1])/diff(d_range1) * diff(p_range1) + p_range1[1]) * 100)) + 
+          ggplot2::scale_x_date(name = "") +
+          ggplot2::geom_ribbon(data = toplot3[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_d|Pr_u", colnames(uc[[i]][[j]]), ignore.case = T)], ], 
+                               ggplot2::aes(x = eval(parse(text = model$timeID)), ymin = d_range1[1], ymax = value, group = variable, fill = variable), alpha = 0.5) + 
+          ggplot2::geom_hline(yintercept = 0, color = "grey") + 
+          ggplot2::geom_line(data = toplot3[variable == "Ctt", ], 
+                             ggplot2::aes(x = eval(parse(text = model$timeID)), y = value, group = variable, color = variable), color = "black") + 
+          ggplot2::theme_minimal() + ggplot2::theme(legend.position = "bottom") + 
+          ggplot2::guides(color = ggplot2::guide_legend(title = NULL), fill = ggplot2::guide_legend(title = NULL))
+        
+        toplot4 = melt(uc[[i]][[j]], id.vars = c(model$panelID, model$timeID))
+        d_range2 = range(toplot4[variable == "ctt", ]$value, na.rm = T)
+        p_range2 = range(toplot4[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_", colnames(uc[[i]][[j]]))], ]$value, na.rm = T)
+        toplot4[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_", colnames(uc[[i]][[j]]))], "value" := (value - p_range2[1])/diff(p_range2) * diff(d_range2) + d_range2[1], by = "variable"]
+        g4 = ggplot2::ggplot() +  
+          ggplot2::ggtitle(paste(i, "Dynamic Common Factor"), subtitle = "Differenced") + 
+          ggplot2::scale_y_continuous(name = "Dynamic Common Factor", limits = range(toplot4[variable == "ctt", ]$value, na.rm = T), 
+                             sec.axis = ggplot2::sec_axis(name = "Probability of State (%)", ~((. - d_range2[1])/diff(d_range2) * diff(p_range2) + p_range2[1]) * 100)) + 
+          ggplot2::scale_x_date(name = "") +
+          ggplot2::geom_ribbon(data = toplot4[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_d|Pr_u", colnames(uc[[i]][[j]]), ignore.case = T)], ], 
+                               ggplot2::aes(x = eval(parse(text = model$timeID)), ymin = d_range2[1], ymax = value, group = variable, fill = variable), alpha = 0.5) + 
+          ggplot2::geom_hline(yintercept = 0, color = "grey") + 
+          ggplot2::geom_line(data = toplot4[variable == "ctt", ], 
+                             ggplot2::aes(x = eval(parse(text = model$timeID)), y = value, group = variable, color = variable), color = "black") + 
+          ggplot2::theme_minimal() + ggplot2::theme(legend.position = "bottom") + 
+          ggplot2::guides(color = ggplot2::guide_legend(title = NULL), fill = ggplot2::guide_legend(title = NULL))
+        
+        gridExtra::grid.arrange(g1, g2, g3, g4, layout_matrix = matrix(c(1, 3, 2, 4), nrow = 2),
+                                top = grid::textGrob(j, gp = grid::gpar(fontsize = 20, font = 3)))
+        Sys.sleep(0.1)
+      }
     }
   }
-  return(do.call("rbind", uc))
+  
+  names(uc) = "US"
+  uc[["CAN"]] = copy(uc[["US"]])
+  uc[["CAN"]]$filter[, "panelid" := "CAN"]
+  uc[["CAN"]]$smooth[, "panelid" := "CAN"]
+  
+  ret = list(filter = do.call("rbind", lapply(names(uc), function(x){
+    uc[[x]]$filter
+    })), 
+    smooth = do.call("rbind", lapply(names(uc), function(x){
+      uc[[x]]$smooth
+    }))
+  )
+  
+  return(ret)
 }
 
 ########
