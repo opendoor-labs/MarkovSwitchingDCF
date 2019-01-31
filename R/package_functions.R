@@ -528,7 +528,7 @@ ms_dcf_filter = function(y, model, plot = F){
   doSNOW::registerDoSNOW(cl)
   invisible(snow::clusterCall(cl, function(x) .libPaths(x), .libPaths()))
   `%fun%` = foreach::`%dopar%`
-  uc = foreach::foreach(i = unique(yy_s[, c(model$panelID), with = F][[1]]), .packages = c("data.table", "MASS"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother", "ss_prob", "v_prob")) %fun% {
+  uc = foreach::foreach(i = unique(yy_s[, c(model$panelID), with = F][[1]]), .packages = c("data.table", "MASS"), .export = c("SSmodel_ms")) %fun% {
     yti = t(yy_s[eval(parse(text = model$panelID)) == i, colnames(yy_s)[!colnames(yy_s) %in% c(model$panelID, model$timeID)], with = F])
     # init = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
     # init = kim_smoother(B_tlss = init$B_tlss, B_tts = init$B_tts, B_tt = init$B_tt, P_tlss = init$P_tlss, P_tts = init$P_tts,
