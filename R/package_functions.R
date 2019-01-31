@@ -31,7 +31,7 @@ trans = function(c0){
 ####################################################################################################
 # Reverse the transformation for initial values
 ####################################################################################################
-init = function(cc){
+init_trans = function(cc){
   c0 = cc
   
   iter = 1
@@ -77,7 +77,7 @@ init = function(cc){
 #' SSmodel_ms(par, yt, panelID, timeID)
 #' @author Alex Hubbard (hubbard.alex@gmail.com)
 #' @export
-SSmodel_ms = function(par, yt, panelID = NULL, timeID = NULL){
+SSmodel_ms = function(par, yt, panelID = NULL, timeID = NULL, init = NULL){
   #Get the parameters
   vars = dimnames(yt)[which(unlist(lapply(dimnames(yt), function(x){!is.null(x)})))][[1]]
   vars = vars[!vars %in% c(panelID, timeID)]
@@ -162,12 +162,20 @@ SSmodel_ms = function(par, yt, panelID = NULL, timeID = NULL){
   }
   
   #Initialize the filter for each state
-  B0 = array(unlist(lapply(colnames(Tr_mat), function(x){ginv(diag(ncol(Fm)) - Fm) %*% Mu[,, x]})),
+  if(is.null(init)){
+    B0 = array(unlist(lapply(colnames(Tr_mat), function(x){ginv(diag(ncol(Fm)) - Fm) %*% Mu[,, x]})),
              dim = dim(Mu), dimnames = dimnames(Mu))
-  VecP0 = ginv(diag(prod(dim(Fm))) - kronecker(Fm, Fm)) %*% matrix(as.vector(Qm), ncol = 1)
-  P0 = array(unlist(lapply(dimnames(B0)[[3]], function(x){matrix(VecP0[, 1], ncol = ncol(Fm))})), 
-             dim = c(nrow(Fm), ncol(Fm), dim(B0)[3]), dimnames = dimnames(B0))
-  
+  }else{
+    B0 = init[["B0"]]
+  }
+  if(is.null(init)){
+    VecP0 = ginv(diag(prod(dim(Fm))) - kronecker(Fm, Fm)) %*% matrix(as.vector(Qm), ncol = 1)
+    P0 = array(unlist(lapply(dimnames(B0)[[3]], function(x){matrix(VecP0[, 1], ncol = ncol(Fm))})), 
+               dim = c(nrow(Fm), ncol(Fm), dim(B0)[3]), dimnames = dimnames(B0))
+  }else{
+    P0 = init[["P0"]]
+  }
+    
   return(list(B0 = B0, P0 = P0, At = Am, Mu = Mu, Ht = Hm, Ft = Fm, Qt = Qm, Rt = Rm, Tr_mat = Tr_mat))
 }
 
@@ -243,7 +251,6 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   }else{
     trace = 2
   }
-
   
   if(is.null(panelID)){
     panelID = "panelid"
@@ -251,10 +258,10 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   }
   vars = colnames(y)[!colnames(y) %in% c(panelID, timeID)]
   
-  objective = function(par, yt, panelID, timeID){
+  objective = function(par, yt, panelID, timeID, init = NULL){
     par = trans(par)
-    sp = SSmodel_ms(par, yt, panelID, timeID)
-    toret = foreach::foreach(i = unique(yt[, c(panelID), with = F][[1]]), .packages = c("data.table")) %fun% {
+    sp = SSmodel_ms(par, yt, panelID, timeID, init = init)
+    toret = foreach::foreach(i = unique(yt[, c(panelID), with = F][[1]]), .packages = c("data.table"), .export = c("SSmodel_ms")) %fun% {
       yti = t(yt[eval(parse(text = panelID)) == i, colnames(yt)[!colnames(yt) %in% c(panelID, timeID)], with = F])
       ans = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
       return(ans$loglik)
@@ -415,22 +422,33 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   }
   y = y[, c(panelID, timeID, vars), with = F]
   
+  #Get initial values for the filter
+  # sp = SSmodel_ms(par, yt, panelID, timeID)
+  # init = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
+  # init = kim_smoother(B_tlss = init$B_tlss, B_tts = init$B_tts, B_tt = init$B_tt, P_tlss = init$P_tlss, P_tts = init$P_tts,
+  #                     Pr_tls = init$Pr_tls, Pr_tts = init$Pr_tts, Ft = sp$Ft, Mu = sp$Mu, Tr_mat = sp$Tr_mat)
+  # init = list(B0 = array(unlist(lapply(1:dim(init$B_tts)[3], function(x){matrix(init$B_tts[,1,x], ncol = 1)})),
+  #                        dim = dim(sp$B0)), 
+  #             P0 = array(unlist(lapply(1:length(init$P_tts), function(x){init$P_tts[[x]][,,1]})),
+  #                        dim = dim(sp$P0)))
+  init = NULL
+  
   #Estimate the model
   cl = parallel::makeCluster(min(c(length(unique(yy_s[, c(panelID), with = F][[1]])), parallel::detectCores())))
   doSNOW::registerDoSNOW(cl)
   invisible(snow::clusterCall(cl, function(x) .libPaths(x), .libPaths()))
   `%fun%` = foreach::`%dopar%`
-  out = tryCatch(maxLik::maxLik(logLik = objective, start = init(theta), method = optim_methods[1],
+  out = tryCatch(maxLik::maxLik(logLik = objective, start = init_trans(theta), method = optim_methods[1],
                                 finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit), #init = init,
-                                yt = yy_s, panelID = panelID, timeID = timeID),
+                                yt = yy_s, panelID = panelID, timeID = timeID, init = init),
                  error = function(err){
-                   tryCatch(maxLik::maxLik(logLik = objective, start = init(theta), method = optim_methods[min(c(2, length(optim_methods)))],
+                   tryCatch(maxLik::maxLik(logLik = objective, start = init_trans(theta), method = optim_methods[min(c(2, length(optim_methods)))],
                                            finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit), #init = init,
-                                           yt = yy_s, panelID = panelID, timeID = timeID),
+                                           yt = yy_s, panelID = panelID, timeID = timeID, init = init),
                             error = function(err){
-                              tryCatch(maxLik::maxLik(logLik = objective, start = init(theta), method = optim_methods[min(c(3, length(optim_methods)))],
+                              tryCatch(maxLik::maxLik(logLik = objective, start = init_trans(theta), method = optim_methods[min(c(3, length(optim_methods)))],
                                                       finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit), #init = init,
-                                                      yt = yy_s, panelID = panelID, timeID = timeID),
+                                                      yt = yy_s, panelID = panelID, timeID = timeID, init = init),
                                        error = function(err){NULL})
                             })
                  })
@@ -440,15 +458,15 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     while(out$code != 0 & trials < maxtrials){
       out2 = tryCatch(maxLik::maxLik(logLik = objective, start = coef(out), method = optim_methods[1],
                                      finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit), #init = init,
-                                     yt = yy_s, panelID = panelID, timeID = timeID),
+                                     yt = yy_s, panelID = panelID, timeID = timeID, init = init),
                       error = function(err){
                         tryCatch(maxLik::maxLik(logLik = objective, start = coef(out), method = optim_methods[min(c(2, length(optim_methods)))],
                                                 finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit), #init = init,
-                                                yt = yy_s, panelID = panelID, timeID = timeID),
+                                                yt = yy_s, panelID = panelID, timeID = timeID, init = init),
                                  error = function(err){
                                    tryCatch(maxLik::maxLik(logLik = objective, start = coef(out), method = optim_methods[min(c(3, length(optim_methods)))],
                                                            finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit), #init = init,
-                                                           yt = yy_s, panelID = panelID, timeID = timeID),
+                                                           yt = yy_s, panelID = panelID, timeID = timeID, init = init),
                                             error = function(err){NULL})
                                  })
                       })
@@ -512,7 +530,15 @@ ms_dcf_filter = function(y, model, plot = F){
   `%fun%` = foreach::`%dopar%`
   uc = foreach::foreach(i = unique(yy_s[, c(model$panelID), with = F][[1]]), .packages = c("data.table", "MASS"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother", "ss_prob", "v_prob")) %fun% {
     yti = t(yy_s[eval(parse(text = model$panelID)) == i, colnames(yy_s)[!colnames(yy_s) %in% c(model$panelID, model$timeID)], with = F])
-    ans = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
+    # init = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
+    # init = kim_smoother(B_tlss = init$B_tlss, B_tts = init$B_tts, B_tt = init$B_tt, P_tlss = init$P_tlss, P_tts = init$P_tts,
+    #                     Pr_tls = init$Pr_tls, Pr_tts = init$Pr_tts, Ft = sp$Ft, Mu = sp$Mu, Tr_mat = sp$Tr_mat)
+    # init = list(B0 = array(unlist(lapply(1:dim(init$B_tts)[3], function(x){matrix(init$B_tts[,1,x], ncol = 1)})),
+    #                        dim = dim(sp$B0)), 
+    #             P0 = array(unlist(lapply(1:length(init$P_tts), function(x){init$P_tts[[x]][,,1]})),
+    #                        dim = dim(sp$P0)))
+    # sp = SSmodel_ms(model$coef, yy_s[eval(parse(text = model$panelID)) == i, ], model$panelID, model$timeID, init = init)
+    # ans = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
     
     #Get the steady state Kalman gain approximation
     K = ans$K[,, dim(ans$K)[3]]
@@ -626,11 +652,6 @@ ms_dcf_filter = function(y, model, plot = F){
       }
     }
   }
-  
-  names(uc) = "US"
-  uc[["CAN"]] = copy(uc[["US"]])
-  uc[["CAN"]]$filter[, "panelid" := "CAN"]
-  uc[["CAN"]]$smooth[, "panelid" := "CAN"]
   
   ret = list(filter = do.call("rbind", lapply(names(uc), function(x){
     uc[[x]]$filter

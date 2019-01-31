@@ -218,7 +218,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Mu, arma::mat Ft,
 }
 //library(Rcpp)
 //library(RcppArmadillo)
-//sourceCpp("/Users/alexhubbard/Dropbox (Opendoor)/R Codes/Packages/hamiltonfilter/src/hamiltonfilter.cpp")
+//sourceCpp("/Users/alexhubbard/Dropbox (Opendoor)/R Codes/Packages/MarkovSwitchingDCF/src/kimfilter.cpp")
 
 // [[Rcpp::export]]
 Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arma::field<arma::cube> P_tlss, arma::field<arma::cube> P_tts,
