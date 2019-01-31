@@ -627,4 +627,4 @@ ms_dcf_filter = function(y, model, plot = F){
 #devtools::build_vignettes()
 #devtools::install()
 #library(projectmap)
-#git config remote.origin.url git@github.com:opendoor-labs/kfdecomp.git
+#git config remote.origin.url git@github.com:opendoor-labs/MarkovSwitchingDCF.git
