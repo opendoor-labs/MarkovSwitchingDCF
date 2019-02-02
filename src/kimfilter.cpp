@@ -12,6 +12,17 @@
 #include <omp.h>
 #endif
 
+// [[Rcpp::export]]
+arma::mat gen_inv(arma::mat m){
+  arma::mat out(m.n_rows, m.n_cols);
+  try{
+    out = inv(m);
+  }catch(std::exception &ex){
+    out = pinv(m);
+  }
+  return out;
+}
+
 // Finds the steady state probabilities from a transition matrix
 // mat = |p_11 p_21 ... p_m1|
 //       |p_12 p_22 ... p_m2|
@@ -26,14 +37,14 @@ arma::mat ss_prob(arma::mat mat){
   arma::mat A1(mat.n_rows, mat.n_rows);
   
   arma::mat A = join_cols(A1.eye() - mat, One);
-  arma::mat B = inv(A.t() * A) * A.t();
+  arma::mat B = gen_inv(A.t() * A) * A.t();
   return B * join_cols(Zero, One.submat(0, 0, 0, 0));;
 }
 
 // Likelihood function for the Kim filter
 // [[Rcpp::export]]
 arma::mat v_prob(arma::mat EV, arma::mat HE){
-  return (1/sqrt(det(HE)))*exp(-0.5*EV.t() * inv(HE) * EV); //Pr[Yt|S_t,Yt-1]
+  return (1/sqrt(det(HE)))*exp(-0.5*EV.t() * gen_inv(HE) * EV); //Pr[Yt|S_t,Yt-1]
 }
 
 // [[Rcpp::export]]
@@ -71,6 +82,8 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Mu, arma::mat Ft,
   arma::mat Pr_tl(n_states, n_states, arma::fill::zeros);
   arma::mat Mu_tt(yt.n_cols, Ft.n_rows, arma::fill::zeros);
   arma::mat B_tt(yt.n_cols, Ft.n_rows, arma::fill::zeros);
+  arma::uvec nonna_idx;
+  arma::uvec na_idx;
   double lnl = 0.0;
   double Pr_val = 0.0;
   int s = 0;
@@ -108,18 +121,25 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Mu, arma::mat Ft,
         //Forecast errors
         //N^{i,j}_{t|t-1} = yti[, j] - Hm %*% B^{i,j}_{t|t-1}
         N_TLss.slice(s) = yt.col(i) - Ht * B_tlss.slice(s).col(i);
-
+        //Ignore series with missing data
+        nonna_idx = arma::find_finite(N_TLss.slice(s));
+        na_idx = arma::find_nonfinite(N_TLss.slice(s));
+        if(!na_idx.is_empty()){
+          N_TLss.slice(s).rows(na_idx) = arma::mat(na_idx.n_elem, 1, arma::fill::zeros);
+        }
+        
         //Variance of forecast errors
         //F^{i,j}_{t|t-1} = Hm %*% P^{i,j}_{t|t-1} %*% t(Hm) + Rm
         F_TLss.slice(s) = Ht * P_tlss(s).slice(i) * Ht.t() + Rt;
 
         //Kalman gain
         //K^{i,j} = P^{i,j}_{t|t-1} %*% t(Hm) %*% solve(F^{i,j}_{t|t-1})
-        Kss.slice(s) = P_tlss(s).slice(i) * Ht.t() * inv(F_TLss.slice(s));
+        Kss.slice(s) = P_tlss(s).slice(i) * Ht.t() * gen_inv(F_TLss.slice(s));
 
         //Updated predictions of unobserved component
         //B^{i,j}_{t|t} = B^{i,j}_{t|t-1} + K^{i,j} %*% N^{i,j}_{t|t-1}
-        B_ttss.slice(s).col(i) = B_tlss.slice(s).col(i) + Kss.slice(s) * N_TLss.slice(s);
+        //Kalman gain from missing values is 0, same as if the model's prediction
+        B_ttss.slice(s).col(i) = B_tlss.slice(s).col(i) + Kss.slice(s) * N_TLss.slice(s); 
 
         //Updated predictions of the covariance matrix of unobserved component
         //P^{i,j}_{t|t} = P^{i,j}_{t|t-1} - K^{i,j} %*% Hm %*% P^{i,j}_{t|t-1}
@@ -127,7 +147,13 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Mu, arma::mat Ft,
 
         //f[y_t|S_t=j,S_{t-1}=i,Y_{t-1}]
         //PR_VL^{i,j} = v_prob(N^{i,j}_{t|t-1}, F^{i,j}_{t|t-1})*Pr_tl["d", "d"]
-        PR_VLss.slice(s) = v_prob(N_TLss.slice(s), F_TLss.slice(s)) * Pr_tl(st, stl);
+        //Ignore series with missing data
+        // if(nonna_idx.is_empty()){ //If all series missing data
+          PR_VLss.slice(s) = v_prob(N_TLss.slice(s), F_TLss.slice(s)) * Pr_tl(st, stl);
+        // }else{
+        //   PR_VLss.slice(s) = v_prob(N_TLss.slice(s).rows(nonna_idx), 
+        //                 F_TLss.slice(s)(nonna_idx, nonna_idx)) * Pr_tl(st, stl);
+        // }
 
         //Joint density conditional on t-1
         Pr_val = Pr_val + arma::as_scalar(PR_VLss.slice(s));
@@ -139,7 +165,11 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Mu, arma::mat Ft,
       //Joint probabilties conditional on t
       //Pr[S_t=j,S_{t-1}=i|Y_t] = f[y_t|S_t=j,S_{t-1}=i,Y_{t-1}]*Pr[S_t=j,S{t-1}=i|Yt]/f[y_t|Y_{t-1}]
       //PRO^{i,j} = PR_VL^{i,j}/Pr_val
-      PROss.slice(s) = PR_VLss(s)/arma::as_scalar(Pr_val);
+      if(arma::as_scalar(Pr_val) > 0){
+        PROss.slice(s) = PR_VLss.slice(s)/arma::as_scalar(Pr_val);  
+      }else{
+        PROss.slice(s) = PR_VLss.slice(s);
+      }
     }
 
     for(int s = 0; s < n_states; s++){
@@ -268,7 +298,7 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
       //B^{j}_{t|T} = (sum_{i}(Pr[S_t|Y_T]^{i,j}*B^{j,k}_{t|T}))/Pr[j]
       B_tts.slice(s).col(i) = arma::zeros(B_tts.slice(s).col(i).n_rows, B_tts.slice(s).col(i).n_cols);
       for(int j = n_states - 1; j >= 0; j--){
-        B_tts.slice(s).col(i) = arma::as_scalar(Pr_tTss.slice((s + 1)*n_states - j - 1)) * B_tTss.slice((s + 1)*n_states - j - 1);
+        B_tts.slice(s).col(i) += arma::as_scalar(Pr_tTss.slice((s + 1)*n_states - j - 1)) * B_tTss.slice((s + 1)*n_states - j - 1);
       }
       if(arma::as_scalar(Pr_tts(i, s)) < tol){
         B_tts.slice(s).col(i) /= arma::as_scalar(arma::datum::inf);
