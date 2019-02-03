@@ -602,7 +602,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   }
   snow::stopCluster(cl)
   return(list(coef = trans(coef(out)), coef_init = trans(theta), convergence = out$code, loglik = out$maximum, panelID = panelID, timeID = timeID,
-              vars = vars, log.vars = log.vars, ur.vars = ur.vars, n_states = n_states, na_locs = na_locs, 
+              vars = vars, log.vars = log.vars, ur.vars = ur.vars, n_states = n_states, 
               formulas = formulas, prior = ifelse(is.numeric(prior), "given", prior)))
 }
 
@@ -644,13 +644,26 @@ ms_dcf_filter = function(y, model, plot = F){
     (x - mean(x, na.rm = T))/sd(x, na.rm = T)
   }), by = c(model$panelID), .SDcols = c(model$vars)]
   
+  if(any(is.na(yy_s[, c(model$vars), with = F]))){
+    na_locs = lapply(unique(yy_s[, c(model$panelID), with = F][[1]]), function(x){
+      ret = lapply(model$vars, function(v){
+        yy_s[eval(parse(text = model$panelID)) == x, c(v), with = F][is.na(eval(parse(text = paste0("`", v, "`")))), which = T]
+      })
+      names(ret) = model$vars
+      return(ret)
+    })
+    names(na_locs) = unique(yy_s[, c(model$panelID), with = F][[1]])
+  }else{
+    na_locs = NULL
+  }
+  
   #Filter the data using the estimated model
   sp = SSmodel_ms(model$coef, yy_s, model$n_states, model$panelID, model$timeID)
   cl = parallel::makeCluster(min(c(length(unique(yy_s[, c(model$panelID), with = F][[1]])), parallel::detectCores())))
   doSNOW::registerDoSNOW(cl)
   invisible(snow::clusterCall(cl, function(x) .libPaths(x), .libPaths()))
   `%fun%` = foreach::`%dopar%`
-  uc = foreach::foreach(i = unique(yy_s[, c(model$panelID), with = F][[1]]), .packages = c("data.table", "MASS"), .export = c("SSmodel_ms")) %fun% {
+  uc = foreach::foreach(i = unique(yy_s[, c(model$panelID), with = F][[1]]), .packages = c("data.table", "MASS"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother")) %fun% {
     yti = t(yy_s[eval(parse(text = model$panelID)) == i, colnames(yy_s)[!colnames(yy_s) %in% c(model$panelID, model$timeID)], with = F])
     init = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
     init = kim_smoother(B_tlss = init$B_tlss, B_tts = init$B_tts, B_tt = init$B_tt, P_tlss = init$P_tlss, P_tts = init$P_tts,
@@ -661,11 +674,11 @@ ms_dcf_filter = function(y, model, plot = F){
                            dim = dim(sp$P0)))
     sp2 = SSmodel_ms(model$coef, yy_s[eval(parse(text = model$panelID)) == i, ], model$n_states, model$panelID, model$timeID, init = init)
     ans = kim_filter(sp2$B0, sp2$P0, sp2$Mu, sp2$Ft, sp2$Ht, sp2$Qt, sp2$Rt, sp2$Tr_mat, yti)
-    if(!is.null(model$na_locs)){
+    if(!is.null(na_locs)){
       fc = sp$Ht %*% t(ans$B_tt)
       rownames(fc) = rownames(yti)
       for(x in rownames(fc)){
-        yti[x, model$na_locs[[i]][[x]]] = fc[x, model$na_locs[[i]][[x]]]
+        yti[x, na_locs[[i]][[x]]] = fc[x, na_locs[[i]][[x]]]
       }
       ans = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
     }
@@ -725,8 +738,8 @@ ms_dcf_filter = function(y, model, plot = F){
     for(j in c("filter", "smooth")){
       for(i in unique(y[, c(model$panelID), with = F][[1]])){  
         toplot1 = melt(y[eval(parse(text = model$panelID)) == i, ], id.vars = c(model$panelID, model$timeID))
-        toplot1 = merge(toplot1, toplot1[eval(parse(text = model$timeID)) == min(eval(parse(text = model$timeID))), c("variable", "value"), with = F], by = c("variable"), all.x = T, all.y = F, suffixes = c("", "_start"))
-        toplot1[, "value2" := value - (value_start - mean(toplot1[eval(parse(text = model$timeID)) == min(eval(parse(text = model$timeID))), ]$value))*9/10, by = "variable"]
+        toplot1 = merge(toplot1, toplot1[, .(value_start = mean(value, na.rm = T)), by = c(model$panelID, "variable")], by = c("variable"), all.x = T, all.y = F)
+        toplot1[, "value2" := value - (value_start - mean(toplot1[eval(parse(text = model$timeID)) == min(eval(parse(text = model$timeID))), ]$value, na.rm = T))*9/10, by = "variable"]
         g1 = ggplot2::ggplot(toplot1) + 
           ggplot2::ggtitle(paste(ifelse(i == "panel" & model$panelID == "panelid", "", i), "Data Series"), subtitle = "Levels") + 
           ggplot2::scale_y_continuous(name = "Log Levels (Intercept Adjusted)") + 
