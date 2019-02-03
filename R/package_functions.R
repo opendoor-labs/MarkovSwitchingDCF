@@ -80,8 +80,8 @@ init_trans = function(cc){
 
 #' State space model for markov switching mean
 #' Creates a state space model in list form
-#' yt = Ht %*% Bt + e_t
-#' Bt = Mu_ts + Ft %*% B_{t=1} + u_t
+#' yt = At + Ht %*% Bt + e_t
+#' Bt = D_t + Ft %*% B_{t=1} + u_t
 #'
 #' @param par Vector of named parameter values
 #' @param yt Multivariate time series of data values
@@ -158,15 +158,16 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
   colnames(Rm) = vars
   rownames(Rm) = vars
   
-  #Build the Markov-switching mean matrix
-  Mu_d = t(t(c(ifelse(length(mu[grepl("d", tolower(names(mu)))]) == 0, 0, mu[grepl("d", tolower(names(mu)))]), rep(0, ncol(Fm) - 1))))
-  Mu_u = t(t(c(ifelse(length(mu[grepl("u", tolower(names(mu)))]) == 0, 0, mu[grepl("u", tolower(names(mu)))]), rep(0, ncol(Fm) - 1))))
+  #Tranistion equation intercept matrix
+  #The Markov-switching mean matrix
+  D_d = t(t(c(ifelse(length(mu[grepl("d", tolower(names(mu)))]) == 0, 0, mu[grepl("d", tolower(names(mu)))]), rep(0, ncol(Fm) - 1))))
+  D_u = t(t(c(ifelse(length(mu[grepl("u", tolower(names(mu)))]) == 0, 0, mu[grepl("u", tolower(names(mu)))]), rep(0, ncol(Fm) - 1))))
   if(n_states == 2){
-    Mu = array(c(Mu_d = Mu_d, Mu_u = Mu_u), dim = c(nrow(Fm), 1, n_states),
+    Dm = array(c(D_d = D_d, D_u = D_u), dim = c(nrow(Fm), 1, n_states),
                dimnames = list(NULL, NULL, c("d", "u")))
   }else if(n_states == 3){
-    Mu_m = t(t(c(ifelse(length(mu[grepl("m", tolower(names(mu)))]) == 0, 0, mu[grepl("m", tolower(names(mu)))]), rep(0, ncol(Fm) - 1))))
-    Mu = array(c(Mu_d = Mu_d, Mu_m = Mu_m, Mu_u = Mu_u), dim = c(nrow(Fm), 1, n_states),
+    D_m = t(t(c(ifelse(length(mu[grepl("m", tolower(names(mu)))]) == 0, 0, mu[grepl("m", tolower(names(mu)))]), rep(0, ncol(Fm) - 1))))
+    Dm = array(c(D_d = D_d, D_m = D_m, D_u = D_u), dim = c(nrow(Fm), 1, n_states),
                dimnames = list(NULL, NULL, c("d", "m", "u")))
   }
   
@@ -187,8 +188,8 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
   
   #Initialize the filter for each state
   if(is.null(init)){
-    B0 = array(unlist(lapply(colnames(Tr_mat), function(x){MASS::ginv(diag(ncol(Fm)) - Fm) %*% Mu[,, x]})),
-             dim = dim(Mu), dimnames = dimnames(Mu))
+    B0 = array(unlist(lapply(colnames(Tr_mat), function(x){MASS::ginv(diag(ncol(Fm)) - Fm) %*% Dm[,, x]})),
+             dim = dim(Dm), dimnames = dimnames(Dm))
   }else{
     B0 = init[["B0"]]
   }
@@ -200,7 +201,7 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
     P0 = init[["P0"]]
   }
     
-  return(list(B0 = B0, P0 = P0, At = Am, Mu = Mu, Ht = Hm, Ft = Fm, Qt = Qm, Rt = Rm, Tr_mat = Tr_mat))
+  return(list(B0 = B0, P0 = P0, At = Am, Dt = Dm, Ht = Hm, Ft = Fm, Qt = Qm, Rt = Rm, Tr_mat = Tr_mat))
 }
 
 #' Markov switching model estimation by the Kim filter (Hamilton + Kalman filter)
@@ -500,9 +501,9 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   sp = SSmodel_ms(theta, yy_s, n_states, panelID, timeID)
   init = foreach::foreach(i = unique(y[, c(panelID), with = F][[1]]), .packages = c("data.table"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother")) %fun% {
     yti = t(yy_s[eval(parse(text = panelID)) == i, colnames(yy_s)[!colnames(yy_s) %in% c(panelID, timeID)], with = F])
-    ret = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
+    ret = kim_filter(sp$B0, sp$P0, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
     smooth = kim_smoother(B_tlss = ret$B_tlss, B_tts = ret$B_tts, B_tt = ret$B_tt, P_tlss = ret$P_tlss, P_tts = ret$P_tts,
-                       Pr_tls = ret$Pr_tls, Pr_tts = ret$Pr_tts, Ft = sp$Ft, Mu = sp$Mu, Tr_mat = sp$Tr_mat)
+                       Pr_tls = ret$Pr_tls, Pr_tts = ret$Pr_tts, Ft = sp$Ft, Dt = sp$Dt, Tr_mat = sp$Tr_mat)
     
     ret = list(B0 = array(unlist(lapply(1:dim(ret$B_tts)[3], function(x){matrix(ret$B_tts[,1,x], ncol = 1)})),
                           dim = dim(sp$B0)),
@@ -519,16 +520,16 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     toret = foreach::foreach(i = unique(yy_s[, c(panelID), with = F][[1]]), .packages = c("data.table"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother")) %fun% {
       sp = SSmodel_ms(par, yy_s, n_states, panelID, timeID, init = init[[i]])
       yti = t(yy_s[eval(parse(text = panelID)) == i, colnames(yy_s)[!colnames(yy_s) %in% c(panelID, timeID)], with = F])
-      ans = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
+      ans = kim_filter(sp$B0, sp$P0, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
       if(!is.null(na_locs)){
         # ans = kim_smoother(ans$B_tlss, ans$B_tts, ans$B_tt, ans$P_tlss, ans$P_tts, 
-        #                    ans$Pr_tls, ans$Pr_tts, sp$Ft, sp$Mu, sp$Tr_mat)
+        #                    ans$Pr_tls, ans$Pr_tts, sp$Ft, sp$Dt, sp$Tr_mat)
         fc = sp$Ht %*% t(ans$B_tt)
         rownames(fc) = rownames(yti)
         for(x in rownames(fc)){
           yti[x, na_locs[[i]][[x]]] = fc[x, na_locs[[i]][[x]]]
         }
-        ans = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
+        ans = kim_filter(sp$B0, sp$P0, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
         ret = list(loglik = ans$loglik, yy_s = data.table(t(yti)))
         ret$yy_s[, "temp" := i]
         colnames(ret$yy_s)[colnames(ret$yy_s) == "temp"] = panelID
@@ -665,22 +666,22 @@ ms_dcf_filter = function(y, model, plot = F){
   `%fun%` = foreach::`%dopar%`
   uc = foreach::foreach(i = unique(yy_s[, c(model$panelID), with = F][[1]]), .packages = c("data.table", "MASS"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother")) %fun% {
     yti = t(yy_s[eval(parse(text = model$panelID)) == i, colnames(yy_s)[!colnames(yy_s) %in% c(model$panelID, model$timeID)], with = F])
-    init = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
+    init = kim_filter(sp$B0, sp$P0, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
     init = kim_smoother(B_tlss = init$B_tlss, B_tts = init$B_tts, B_tt = init$B_tt, P_tlss = init$P_tlss, P_tts = init$P_tts,
-                        Pr_tls = init$Pr_tls, Pr_tts = init$Pr_tts, Ft = sp$Ft, Mu = sp$Mu, Tr_mat = sp$Tr_mat)
+                        Pr_tls = init$Pr_tls, Pr_tts = init$Pr_tts, Ft = sp$Ft, Dt = sp$Dt, Tr_mat = sp$Tr_mat)
     init = list(B0 = array(unlist(lapply(1:dim(init$B_tts)[3], function(x){matrix(init$B_tts[,1,x], ncol = 1)})),
                            dim = dim(sp$B0)),
                 P0 = array(unlist(lapply(1:length(init$P_tts), function(x){init$P_tts[[x]][,,1]})),
                            dim = dim(sp$P0)))
     sp2 = SSmodel_ms(model$coef, yy_s[eval(parse(text = model$panelID)) == i, ], model$n_states, model$panelID, model$timeID, init = init)
-    ans = kim_filter(sp2$B0, sp2$P0, sp2$Mu, sp2$Ft, sp2$Ht, sp2$Qt, sp2$Rt, sp2$Tr_mat, yti)
+    ans = kim_filter(sp2$B0, sp2$P0, sp2$Dt, sp2$Ft, sp2$Ht, sp2$Qt, sp2$Rt, sp2$Tr_mat, yti)
     if(!is.null(na_locs)){
       fc = sp$Ht %*% t(ans$B_tt)
       rownames(fc) = rownames(yti)
       for(x in rownames(fc)){
         yti[x, na_locs[[i]][[x]]] = fc[x, na_locs[[i]][[x]]]
       }
-      ans = kim_filter(sp$B0, sp$P0, sp$Mu, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
+      ans = kim_filter(sp$B0, sp$P0, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
     }
     
     #Get the steady state Kalman gain approximation
@@ -710,13 +711,13 @@ ms_dcf_filter = function(y, model, plot = F){
       Ctt = rep(C10, ncol(yti) + 1)
       if(k == "smooth"){
         ans = kim_smoother(B_tlss = ans$B_tlss, B_tts = ans$B_tts, B_tt = ans$B_tt, P_tlss = ans$P_tlss, P_tts = ans$P_tts, 
-                          Pr_tls = ans$Pr_tls, Pr_tts = ans$Pr_tts, Ft = sp2$Ft, Mu = sp2$Mu, Tr_mat = sp2$Tr_mat)
+                          Pr_tls = ans$Pr_tls, Pr_tts = ans$Pr_tts, Ft = sp2$Ft, Dt = sp2$Dt, Tr_mat = sp2$Tr_mat)
       }
       
       #Build the rest of the DCF series
       #Rescale the first differenced DCF series to match that of the actual series
       ctt = c(0, (t(ans$B_tt[, dcf_loc]))*mean(sds)/sd(ans$B_tt[, dcf_loc]))
-      mutt = c(0, t(ans$Mu_t[, dcf_loc])*mean(sds)/sd(ans$B_tt[, dcf_loc]))
+      mutt = c(0, t(ans$D_tt[, dcf_loc])*mean(sds)/sd(ans$B_tt[, dcf_loc]))
       for(j in 2:length(Ctt)){
         #First element of dCtt is C_22 - C_11 = dCtt_2
         Ctt[j] = ctt[j] + Ctt[j - 1] + c(d)
@@ -726,7 +727,7 @@ ms_dcf_filter = function(y, model, plot = F){
       
       #Build the probability series
       prob = data.table::data.table(panelID = i, date = yy_s[eval(parse(text = model$panelID)) == i, c(model$timeID), with = F][[1]], data.table::data.table(ans$Pr_tts))
-      colnames(prob) = c(model$panelID, model$timeID, paste0("Pr_", dimnames(sp2$Mu)[[3]]))
+      colnames(prob) = c(model$panelID, model$timeID, paste0("Pr_", dimnames(sp2$Dt)[[3]]))
       toret[[k]] = merge(Ctt, prob, by = c(model$timeID, model$panelID), all = T)
     }
     return(toret)
