@@ -48,8 +48,8 @@ arma::mat v_prob(arma::mat EV, arma::mat HE){
 }
 
 // [[Rcpp::export]]
-Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Dt, arma::mat Ft, arma::mat Ht,
-               arma::mat Qt, arma::mat Rt, arma::mat Tr_mat, arma::mat yt){
+Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht,
+               arma::cube Qt, arma::cube Rt, arma::mat Tr_mat, arma::mat yt){
   
   //Define the storage lists
   int n_states = Tr_mat.n_cols;
@@ -80,10 +80,17 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Dt, arma::mat Ft,
   arma::mat Pr_tts(yt.n_cols, n_states, arma::fill::zeros);
   arma::mat Pr_tls(yt.n_cols, n_states, arma::fill::zeros);
   arma::mat Pr_tl(n_states, n_states, arma::fill::zeros);
-  arma::mat D_tt(yt.n_cols, Ft.n_rows, arma::fill::zeros);
   arma::mat B_tt(yt.n_cols, Ft.n_rows, arma::fill::zeros);
   arma::uvec nonna_idx;
   arma::uvec na_idx;
+  
+  arma::cube A_tt(At.n_rows, At.n_cols, yt.n_cols, arma::fill::zeros);
+  arma::cube H_tt(Ht.n_rows, Ht.n_cols, yt.n_cols, arma::fill::zeros);
+  arma::cube R_tt(Rt.n_rows, Rt.n_cols, yt.n_cols, arma::fill::zeros);
+  arma::cube D_tt(Dt.n_rows, Dt.n_cols, yt.n_cols, arma::fill::zeros);
+  arma::cube F_tt(Ft.n_rows, Ft.n_cols, yt.n_cols, arma::fill::zeros);
+  arma::cube Q_tt(Qt.n_rows, Qt.n_cols, yt.n_cols, arma::fill::zeros);
+
   double lnl = 0.0;
   double Pr_val = 0.0;
   int s = 0;
@@ -112,38 +119,38 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Dt, arma::mat Ft,
       for(int st = 0; st < n_states; st++){
         //When S_{t-1}=j, S_{t}=i
         //B^{i,j}_{t|t-1} = D_j + Fm %*% B^{j}_{t|t-1}
-        B_tlss.slice(s).col(i) = Dt.slice(st) + Ft * B_lls.slice(stl);
+        B_tlss.slice(s).col(i) = Dt.slice(st) + Ft.slice(st) * B_lls.slice(stl);
 
         //Initial predictions of the unobserved componennt
         //P^{i,j}_{t|t-1} = P^{i,j}_{t|t-1} = Fm %*% P^{j}_{t-1|t-1} %*% t(Fm) + Qm
-        P_tlss(s).slice(i) = Ft * P_lls.slice(stl) * Ft.t() + Qt;
+        P_tlss(s).slice(i) = Ft.slice(st) * P_lls.slice(stl) * Ft.slice(st).t() + Qt.slice(st);
 
         //Forecast errors
         //N^{i,j}_{t|t-1} = yti[, j] - Hm %*% B^{i,j}_{t|t-1}
-        N_TLss.slice(s) = yt.col(i) - Ht * B_tlss.slice(s).col(i);
+        N_TLss.slice(s) = yt.col(i) - At.slice(st) - Ht.slice(st) * B_tlss.slice(s).col(i);
         //Ignore series with missing data
         nonna_idx = arma::find_finite(N_TLss.slice(s));
         na_idx = arma::find_nonfinite(N_TLss.slice(s));
         if(!na_idx.is_empty()){
           N_TLss.slice(s).rows(na_idx) = arma::mat(na_idx.n_elem, 1, arma::fill::zeros);
         }
-        
+
         //Variance of forecast errors
         //F^{i,j}_{t|t-1} = Hm %*% P^{i,j}_{t|t-1} %*% t(Hm) + Rm
-        F_TLss.slice(s) = Ht * P_tlss(s).slice(i) * Ht.t() + Rt;
+        F_TLss.slice(s) = Ht.slice(st) * P_tlss(s).slice(i) * Ht.slice(st).t() + Rt.slice(st);
 
         //Kalman gain
         //K^{i,j} = P^{i,j}_{t|t-1} %*% t(Hm) %*% solve(F^{i,j}_{t|t-1})
-        Kss.slice(s) = P_tlss(s).slice(i) * Ht.t() * gen_inv(F_TLss.slice(s));
+        Kss.slice(s) = P_tlss(s).slice(i) * Ht.slice(st).t() * gen_inv(F_TLss.slice(s));
 
         //Updated predictions of unobserved component
         //B^{i,j}_{t|t} = B^{i,j}_{t|t-1} + K^{i,j} %*% N^{i,j}_{t|t-1}
         //Kalman gain from missing values is 0, same as if the model's prediction
-        B_ttss.slice(s).col(i) = B_tlss.slice(s).col(i) + Kss.slice(s) * N_TLss.slice(s); 
+        B_ttss.slice(s).col(i) = B_tlss.slice(s).col(i) + Kss.slice(s) * N_TLss.slice(s);
 
         //Updated predictions of the covariance matrix of unobserved component
         //P^{i,j}_{t|t} = P^{i,j}_{t|t-1} - K^{i,j} %*% Hm %*% P^{i,j}_{t|t-1}
-        P_ttss(s).slice(i) = P_tlss(s).slice(i) - Kss.slice(s) * Ht * P_tlss(s).slice(i);
+        P_ttss(s).slice(i) = P_tlss(s).slice(i) - Kss.slice(s) * Ht.slice(st) * P_tlss(s).slice(i);
 
         //f[y_t|S_t=j,S_{t-1}=i,Y_{t-1}]
         //PR_VL^{i,j} = v_prob(N^{i,j}_{t|t-1}, F^{i,j}_{t|t-1})*Pr_tl["d", "d"]
@@ -151,7 +158,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Dt, arma::mat Ft,
         // if(nonna_idx.is_empty()){ //If all series missing data
           PR_VLss.slice(s) = v_prob(N_TLss.slice(s), F_TLss.slice(s)) * Pr_tl(st, stl);
         // }else{
-        //   PR_VLss.slice(s) = v_prob(N_TLss.slice(s).rows(nonna_idx), 
+        //   PR_VLss.slice(s) = v_prob(N_TLss.slice(s).rows(nonna_idx),
         //                 F_TLss.slice(s)(nonna_idx, nonna_idx)) * Pr_tl(st, stl);
         // }
 
@@ -166,7 +173,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Dt, arma::mat Ft,
       //Pr[S_t=j,S_{t-1}=i|Y_t] = f[y_t|S_t=j,S_{t-1}=i,Y_{t-1}]*Pr[S_t=j,S{t-1}=i|Yt]/f[y_t|Y_{t-1}]
       //PRO^{i,j} = PR_VL^{i,j}/Pr_val
       if(arma::as_scalar(Pr_val) > 0){
-        PROss.slice(s) = PR_VLss.slice(s)/arma::as_scalar(Pr_val);  
+        PROss.slice(s) = PR_VLss.slice(s)/arma::as_scalar(Pr_val);
       }else{
         PROss.slice(s) = PR_VLss.slice(s);
       }
@@ -184,8 +191,6 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Dt, arma::mat Ft,
 
     //Collapsing terms
     K.slice(i) = arma::zeros(K.slice(i).n_rows, K.slice(i).n_cols);
-    D_tt.row(i) = arma::zeros(D_tt.row(i).n_rows, D_tt.row(i).n_cols);
-    B_tt.row(i) = arma::zeros(B_tt.row(i).n_rows, B_tt.row(i).n_cols);
     for(int s = 0; s < n_states; s++){
       B_tts.slice(s).col(i) = arma::zeros(B_tts.slice(s).col(i).n_rows, B_tts.slice(s).col(i).n_cols);
       for(int j = 0; j < n_states; j++){
@@ -221,9 +226,13 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Dt, arma::mat Ft,
         P_tts(s).slice(i) /= arma::as_scalar(Pr.row(s));
       }
 
-      
       K.slice(i) += arma::as_scalar(Pr.row(s)) * Ks.slice(s);
-      D_tt.row(i) += (arma::as_scalar(Pr.row(s)) * Dt.slice(s)).t();
+      A_tt.slice(i) += arma::as_scalar(Pr.row(s)) * At.slice(s);
+      H_tt.slice(i) += arma::as_scalar(Pr.row(s)) * Ht.slice(s);
+      R_tt.slice(i) += arma::as_scalar(Pr.row(s)) * Rt.slice(s);
+      D_tt.slice(i) += arma::as_scalar(Pr.row(s)) * Dt.slice(s);
+      F_tt.slice(i) += arma::as_scalar(Pr.row(s)) * Ft.slice(s);
+      Q_tt.slice(i) += arma::as_scalar(Pr.row(s)) * Qt.slice(s);
       B_tt.row(i) += (arma::as_scalar(Pr.row(s)) * B_tts.slice(s).col(i)).t();
 
       B_lls.slice(s) = B_tts.slice(s).col(i);
@@ -243,7 +252,12 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Dt, arma::mat Ft,
                             Rcpp::Named("P_tts") = P_tts,
                             Rcpp::Named("K") = K,
                             Rcpp::Named("B_tt") = B_tt,
+                            Rcpp::Named("A_tt") = A_tt,
+                            Rcpp::Named("H_tt") = H_tt,
+                            Rcpp::Named("R_tt") = R_tt,
                             Rcpp::Named("D_tt") = D_tt,
+                            Rcpp::Named("F_tt") = F_tt,
+                            Rcpp::Named("Q_tt") = Q_tt,
                             Rcpp::Named("loglik") = -lnl); 
 }
 //library(Rcpp)
@@ -251,8 +265,9 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Dt, arma::mat Ft,
 //sourceCpp("/Users/alexhubbard/Dropbox (Opendoor)/R Codes/Packages/MarkovSwitchingDCF/src/kimfilter.cpp")
 
 // [[Rcpp::export]]
-Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arma::field<arma::cube> P_tlss, arma::field<arma::cube> P_tts,
-                       arma::mat Pr_tls, arma::mat Pr_tts, arma::mat Ft, arma::cube Dt, arma::mat Tr_mat){
+Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::field<arma::cube> P_tlss, arma::field<arma::cube> P_tts,
+                       arma::mat Pr_tls, arma::mat Pr_tts, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht,
+                       arma::cube Qt, arma::cube Rt, arma::mat Tr_mat){
   
   int n_states = Tr_mat.n_cols;
   int t = B_tts.slice(0).n_cols - 1;
@@ -260,7 +275,14 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
   arma::cube B_tTss(Ft.n_rows, 1, n_states*n_states, arma::fill::zeros);
   arma::cube P_tTss(Ft.n_rows, Ft.n_rows, n_states*n_states, arma::fill::zeros);
   arma::cube Pr_tTss(1, 1, n_states*n_states, arma::fill::zeros);
-  arma::mat D_tt(B_tts.n_cols, Ft.n_rows, arma::fill::zeros);
+  arma::mat B_tt(B_tlss.n_cols, Ft.n_rows, arma::fill::zeros);
+  
+  arma::cube A_tt(At.n_rows, At.n_cols, B_tlss.n_cols, arma::fill::zeros);
+  arma::cube H_tt(Ht.n_rows, Ht.n_cols, B_tlss.n_cols, arma::fill::zeros);
+  arma::cube R_tt(Rt.n_rows, Rt.n_cols, B_tlss.n_cols, arma::fill::zeros);
+  arma::cube D_tt(Dt.n_rows, Dt.n_cols, B_tlss.n_cols, arma::fill::zeros);
+  arma::cube F_tt(Ft.n_rows, Ft.n_cols, B_tlss.n_cols, arma::fill::zeros);
+  arma::cube Q_tt(Qt.n_rows, Qt.n_cols, B_tlss.n_cols, arma::fill::zeros);
   
   for(int i = t - 1; i >= 0; i--){
     int s = 0;
@@ -268,10 +290,10 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
       for(int stf = 0; stf < n_states; stf++){
         //Full information inference on unobserved component and its covariance matrix
         //B^{j,k}_{t|T} = B^{j}_{t|t} + P^{j}_{t|t} %*% t(Fm) %*% solve(P^{j,k}_{t+1|t}) %*% (B^{k}_{t+1|T} - B^{j,k}_{t+1|t})
-        B_tTss.slice(s) = B_tts.slice(st).col(i) + P_tts(st).slice(i) * Ft.t() * pinv(P_tlss(s).slice(i + 1)) * (B_tts.slice(st).col(i + 1) - B_tlss.slice(s).col(i + 1));
+        B_tTss.slice(s) = B_tts.slice(st).col(i) + P_tts(st).slice(i) * Ft.slice(st).t() * pinv(P_tlss(s).slice(i + 1)) * (B_tts.slice(st).col(i + 1) - B_tlss.slice(s).col(i + 1));
         
         // //P^{j,k} = P^{j}_{t|t} + P^{j}_{t|t} %*% t(Fm) %*% solve(P^{j,k}_{t+1|t}) %*% (P^{k}_{t+t|T} - P^{j,k}_{t+1|t}) %*% t(P^{j}_{t|t} %*% t(Fm) %*% solve(P^{j,k}_{t+1|t}))
-        arma::mat temp = P_tts(st).slice(i) * Ft.t() * pinv(P_tlss(s).slice(i + 1));
+        arma::mat temp = P_tts(st).slice(i) * Ft.slice(st).t() * pinv(P_tlss(s).slice(i + 1));
         P_tTss.slice(s) = P_tts(st).slice(i) + temp * (P_tts(st).slice(i + 1) - P_tlss(s).slice(i + 1)) * temp.t();
         
         //Full information inference on probabilities
@@ -319,7 +341,12 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
       }
 
       B_tt.row(i) += (arma::as_scalar(Pr_tts(i, s)) * B_tts.slice(s).col(i)).t();
-      D_tt.row(i) += (arma::as_scalar(Pr_tts(i, s)) * Dt.slice(s)).t();
+      A_tt.slice(i) += arma::as_scalar(Pr_tts(i, s)) * At.slice(s);
+      H_tt.slice(i) += arma::as_scalar(Pr_tts(i, s)) * Ht.slice(s);
+      R_tt.slice(i) += arma::as_scalar(Pr_tts(i, s)) * Rt.slice(s);
+      D_tt.slice(i) += arma::as_scalar(Pr_tts(i, s)) * Dt.slice(s);
+      F_tt.slice(i) += arma::as_scalar(Pr_tts(i, s)) * Ft.slice(s);
+      Q_tt.slice(i) += arma::as_scalar(Pr_tts(i, s)) * Qt.slice(s);
     }
   }
   
@@ -327,7 +354,12 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
                             Rcpp::Named("P_tts") = P_tts,
                             Rcpp::Named("B_tts") = B_tts,
                             Rcpp::Named("B_tt") = B_tt,
-                            Rcpp::Named("D_tt") = D_tt);
+                            Rcpp::Named("A_tt") = A_tt,
+                            Rcpp::Named("H_tt") = H_tt,
+                            Rcpp::Named("R_tt") = R_tt,
+                            Rcpp::Named("D_tt") = D_tt,
+                            Rcpp::Named("F_tt") = F_tt, 
+                            Rcpp::Named("Q_tt") = Q_tt);
 }
 
 // B_TT = B_TL = matrix(0, ncol = ncol(yt), nrow = nrow(sp$Tt))

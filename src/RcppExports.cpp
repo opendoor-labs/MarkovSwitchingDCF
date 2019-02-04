@@ -41,41 +41,45 @@ BEGIN_RCPP
 END_RCPP
 }
 // kim_filter
-Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube Dt, arma::mat Ft, arma::mat Ht, arma::mat Qt, arma::mat Rt, arma::mat Tr_mat, arma::mat yt);
-RcppExport SEXP _MarkovSwitchingDCF_kim_filter(SEXP B0SEXP, SEXP P0SEXP, SEXP DtSEXP, SEXP FtSEXP, SEXP HtSEXP, SEXP QtSEXP, SEXP RtSEXP, SEXP Tr_matSEXP, SEXP ytSEXP) {
+Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht, arma::cube Qt, arma::cube Rt, arma::mat Tr_mat, arma::mat yt);
+RcppExport SEXP _MarkovSwitchingDCF_kim_filter(SEXP B0SEXP, SEXP P0SEXP, SEXP AtSEXP, SEXP DtSEXP, SEXP FtSEXP, SEXP HtSEXP, SEXP QtSEXP, SEXP RtSEXP, SEXP Tr_matSEXP, SEXP ytSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< arma::cube >::type B0(B0SEXP);
     Rcpp::traits::input_parameter< arma::cube >::type P0(P0SEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type At(AtSEXP);
     Rcpp::traits::input_parameter< arma::cube >::type Dt(DtSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type Ft(FtSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type Ht(HtSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type Qt(QtSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type Rt(RtSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type Ft(FtSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type Ht(HtSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type Qt(QtSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type Rt(RtSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type Tr_mat(Tr_matSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type yt(ytSEXP);
-    rcpp_result_gen = Rcpp::wrap(kim_filter(B0, P0, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt));
+    rcpp_result_gen = Rcpp::wrap(kim_filter(B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt));
     return rcpp_result_gen;
 END_RCPP
 }
 // kim_smoother
-Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arma::field<arma::cube> P_tlss, arma::field<arma::cube> P_tts, arma::mat Pr_tls, arma::mat Pr_tts, arma::mat Ft, arma::cube Dt, arma::mat Tr_mat);
-RcppExport SEXP _MarkovSwitchingDCF_kim_smoother(SEXP B_tlssSEXP, SEXP B_ttsSEXP, SEXP B_ttSEXP, SEXP P_tlssSEXP, SEXP P_ttsSEXP, SEXP Pr_tlsSEXP, SEXP Pr_ttsSEXP, SEXP FtSEXP, SEXP DtSEXP, SEXP Tr_matSEXP) {
+Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::field<arma::cube> P_tlss, arma::field<arma::cube> P_tts, arma::mat Pr_tls, arma::mat Pr_tts, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht, arma::cube Qt, arma::cube Rt, arma::mat Tr_mat);
+RcppExport SEXP _MarkovSwitchingDCF_kim_smoother(SEXP B_tlssSEXP, SEXP B_ttsSEXP, SEXP P_tlssSEXP, SEXP P_ttsSEXP, SEXP Pr_tlsSEXP, SEXP Pr_ttsSEXP, SEXP AtSEXP, SEXP DtSEXP, SEXP FtSEXP, SEXP HtSEXP, SEXP QtSEXP, SEXP RtSEXP, SEXP Tr_matSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< arma::cube >::type B_tlss(B_tlssSEXP);
     Rcpp::traits::input_parameter< arma::cube >::type B_tts(B_ttsSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type B_tt(B_ttSEXP);
     Rcpp::traits::input_parameter< arma::field<arma::cube> >::type P_tlss(P_tlssSEXP);
     Rcpp::traits::input_parameter< arma::field<arma::cube> >::type P_tts(P_ttsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type Pr_tls(Pr_tlsSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type Pr_tts(Pr_ttsSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type Ft(FtSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type At(AtSEXP);
     Rcpp::traits::input_parameter< arma::cube >::type Dt(DtSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type Ft(FtSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type Ht(HtSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type Qt(QtSEXP);
+    Rcpp::traits::input_parameter< arma::cube >::type Rt(RtSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type Tr_mat(Tr_matSEXP);
-    rcpp_result_gen = Rcpp::wrap(kim_smoother(B_tlss, B_tts, B_tt, P_tlss, P_tts, Pr_tls, Pr_tts, Ft, Dt, Tr_mat));
+    rcpp_result_gen = Rcpp::wrap(kim_smoother(B_tlss, B_tts, P_tlss, P_tts, Pr_tls, Pr_tts, At, Dt, Ft, Ht, Qt, Rt, Tr_mat));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -127,8 +131,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_MarkovSwitchingDCF_gen_inv", (DL_FUNC) &_MarkovSwitchingDCF_gen_inv, 1},
     {"_MarkovSwitchingDCF_ss_prob", (DL_FUNC) &_MarkovSwitchingDCF_ss_prob, 1},
     {"_MarkovSwitchingDCF_v_prob", (DL_FUNC) &_MarkovSwitchingDCF_v_prob, 2},
-    {"_MarkovSwitchingDCF_kim_filter", (DL_FUNC) &_MarkovSwitchingDCF_kim_filter, 9},
-    {"_MarkovSwitchingDCF_kim_smoother", (DL_FUNC) &_MarkovSwitchingDCF_kim_smoother, 10},
+    {"_MarkovSwitchingDCF_kim_filter", (DL_FUNC) &_MarkovSwitchingDCF_kim_filter, 10},
+    {"_MarkovSwitchingDCF_kim_smoother", (DL_FUNC) &_MarkovSwitchingDCF_kim_smoother, 13},
     {"_MarkovSwitchingDCF_rcpparma_hello_world", (DL_FUNC) &_MarkovSwitchingDCF_rcpparma_hello_world, 0},
     {"_MarkovSwitchingDCF_rcpparma_outerproduct", (DL_FUNC) &_MarkovSwitchingDCF_rcpparma_outerproduct, 1},
     {"_MarkovSwitchingDCF_rcpparma_innerproduct", (DL_FUNC) &_MarkovSwitchingDCF_rcpparma_innerproduct, 1},
