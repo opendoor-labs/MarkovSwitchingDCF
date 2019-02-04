@@ -6,6 +6,17 @@
 
 using namespace Rcpp;
 
+// Rginv
+arma::mat Rginv(arma::mat m);
+RcppExport SEXP _MarkovSwitchingDCF_Rginv(SEXP mSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type m(mSEXP);
+    rcpp_result_gen = Rcpp::wrap(Rginv(m));
+    return rcpp_result_gen;
+END_RCPP
+}
 // gen_inv
 arma::mat gen_inv(arma::mat m);
 RcppExport SEXP _MarkovSwitchingDCF_gen_inv(SEXP mSEXP) {
@@ -128,6 +139,7 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_MarkovSwitchingDCF_Rginv", (DL_FUNC) &_MarkovSwitchingDCF_Rginv, 1},
     {"_MarkovSwitchingDCF_gen_inv", (DL_FUNC) &_MarkovSwitchingDCF_gen_inv, 1},
     {"_MarkovSwitchingDCF_ss_prob", (DL_FUNC) &_MarkovSwitchingDCF_ss_prob, 1},
     {"_MarkovSwitchingDCF_v_prob", (DL_FUNC) &_MarkovSwitchingDCF_v_prob, 2},

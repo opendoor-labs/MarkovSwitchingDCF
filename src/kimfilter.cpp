@@ -1,5 +1,9 @@
 #include <RcppArmadillo.h>
 #include <Rcpp.h>
+#include <cstdlib>
+#include <cstdio>
+#include <string>
+#include <iostream>
 
 // Correctly setup the build environment
 // [[Rcpp::depends(RcppArmadillo)]]
@@ -11,6 +15,24 @@
 #ifdef _OPENMP
 #include <omp.h>
 #endif
+// R's implementation of the Moore-Penrose pseudo matrix inverse
+// [[Rcpp::export]]
+arma::mat Rginv(arma::mat m){
+  arma::mat U, V;
+  arma::vec S;
+  arma::svd(U, S, V, m, "dc");
+  arma::uvec Positive = arma::find(S > 1E-06 * S(1));
+  if(all(Positive)){
+    arma::mat D = diagmat(S);
+    return V * (1/D * U.t());
+  }else if(!any(Positive)){
+    return arma::zeros(m.n_rows, m.n_cols);
+  }else{
+    S.elem(Positive) = 1/S.elem(Positive);
+    arma::mat D = diagmat(S);
+    return V * D * U.t();
+  }
+}
 
 // [[Rcpp::export]]
 arma::mat gen_inv(arma::mat m){
@@ -18,7 +40,8 @@ arma::mat gen_inv(arma::mat m){
   try{
     out = inv(m);
   }catch(std::exception &ex){
-    out = pinv(m);
+    //out = pinv(m);
+    out = Rginv(m);
   }
   return out;
 }
@@ -290,10 +313,10 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::field<arma::c
       for(int stf = 0; stf < n_states; stf++){
         //Full information inference on unobserved component and its covariance matrix
         //B^{j,k}_{t|T} = B^{j}_{t|t} + P^{j}_{t|t} %*% t(Fm) %*% solve(P^{j,k}_{t+1|t}) %*% (B^{k}_{t+1|T} - B^{j,k}_{t+1|t})
-        B_tTss.slice(s) = B_tts.slice(st).col(i) + P_tts(st).slice(i) * Ft.slice(st).t() * pinv(P_tlss(s).slice(i + 1)) * (B_tts.slice(st).col(i + 1) - B_tlss.slice(s).col(i + 1));
+        B_tTss.slice(s) = B_tts.slice(st).col(i) + P_tts(st).slice(i) * Ft.slice(st).t() * Rginv(P_tlss(s).slice(i + 1)) * (B_tts.slice(st).col(i + 1) - B_tlss.slice(s).col(i + 1));
         
         // //P^{j,k} = P^{j}_{t|t} + P^{j}_{t|t} %*% t(Fm) %*% solve(P^{j,k}_{t+1|t}) %*% (P^{k}_{t+t|T} - P^{j,k}_{t+1|t}) %*% t(P^{j}_{t|t} %*% t(Fm) %*% solve(P^{j,k}_{t+1|t}))
-        arma::mat temp = P_tts(st).slice(i) * Ft.slice(st).t() * pinv(P_tlss(s).slice(i + 1));
+        arma::mat temp = P_tts(st).slice(i) * Ft.slice(st).t() * Rginv(P_tlss(s).slice(i + 1));
         P_tTss.slice(s) = P_tts(st).slice(i) + temp * (P_tts(st).slice(i + 1) - P_tlss(s).slice(i + 1)) * temp.t();
         
         //Full information inference on probabilities
@@ -396,3 +419,5 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::field<arma::c
 //package_native_routine_registration_skeleton("/Users/alexhubbard/Dropbox (Opendoor)/R Codes/Packages/hamiltonfilter")
 //git config remote.origin.url git@github.com:opendoor-labs/hamiltonfilter.git
 
+
+  
