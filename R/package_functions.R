@@ -561,7 +561,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
       if(!is.null(na_locs)){
         # ans = kim_smoother(ans$B_tlss, ans$B_tts, ans$P_tlss, ans$P_tts, ans$Pr_tls, ans$Pr_tts,
         #                    sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, Tr_mat = sp$Tr_mat)
-        fc = sp$Ht %*% t(ans$B_tt)
+        fc = do.call("cbind", lapply(1:nrow(ans$B_tt), function(x){ans$H_tt[,,x] %*% ans$B_tt[x, ]}))
         rownames(fc) = rownames(yti)
         for(x in rownames(fc)){
           yti[x, na_locs[[i]][[x]]] = fc[x, na_locs[[i]][[x]]]
@@ -713,7 +713,7 @@ ms_dcf_filter = function(y, model, plot = F){
     sp2 = SSmodel_ms(model$coef, yy_s[eval(parse(text = model$panelID)) == i, ], model$n_states, model$panelID, model$timeID, init = init)
     ans = kim_filter(sp2$B0, sp2$P0, sp2$At, sp2$Dt, sp2$Ft, sp2$Ht, sp2$Qt, sp2$Rt, sp2$Tr_mat, yti)
     if(!is.null(na_locs)){
-      fc = sp2$Ht %*% t(ans$B_tt)
+      fc = do.call("cbind", lapply(1:nrow(ans$B_tt), function(x){ans$H_tt[,,x] %*% ans$B_tt[x, ]}))
       rownames(fc) = rownames(yti)
       for(x in rownames(fc)){
         yti[x, na_locs[[i]][[x]]] = fc[x, na_locs[[i]][[x]]]
