@@ -32,6 +32,9 @@ trans = function(c0){
   cc[grepl("mu_d", names(cc))] = -exp(c0[grepl("mu_d", names(c0), ignore.case = T)])
   cc[grepl("mu_u", names(cc))] = exp(c0[grepl("mu_u", names(c0), ignore.case = T)])
   
+  #Force sd multiples to be positive
+  cc[grepl("sd_", names(cc))] = abs(cc[grepl("sd_", names(cc))])
+  
   return(cc)
 }
 
@@ -106,8 +109,14 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
   names(sig) = gsub("sigma", "", names(sig))
   mu = par[grepl("mu", names(par))]
   names(mu) = gsub("mu_", "", names(mu))
+  sd = par[grepl("sd", names(par))]
+  names(sd) = gsub("sd_", "", names(sd))
   pr = par[grepl("p_", names(par))]
   names(pr) = gsub("p_", "", names(pr))
+  if(length(sd) == 0){
+    sd = rep(1, length(mu))
+    names(sd) = names(mu)
+  }
   
   #Build the transition equation matrix
   Fm = rbind(phi, c(1, 0))
@@ -167,10 +176,10 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
   colnames(Qm) = rownames(Qm)
   diag(Qm[rownames(Qm)[substr(rownames(Qm), nchar(rownames(Qm)), nchar(rownames(Qm))) == "0"], rownames(Qm)[substr(rownames(Qm), nchar(rownames(Qm)), nchar(rownames(Qm))) == "0"]]) = c(1, sig^2)
   if(n_states == 2){
-    Qm = array(c(Qm, Qm), dim = c(nrow(Qm), ncol(Qm), n_states),
+    Qm = array(c(sd["d"]*Qm, sd["u"]*Qm), dim = c(nrow(Qm), ncol(Qm), n_states),
                dimnames = list(rownames(Qm), colnames(Qm), c("d", "u")))
   }else if(n_states == 3){
-    Qm = array(c(Qm, Qm, Qm), dim = c(nrow(Qm), ncol(Qm), n_states),
+    Qm = array(c(sd["d"]*Qm, sd["m"]*Qm, sd["u"]*Qm), dim = c(nrow(Qm), ncol(Qm), n_states),
                dimnames = list(rownames(Qm), colnames(Qm), c("d", "m", "u")))
   }
   
@@ -280,7 +289,7 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
 #' @author Alex Hubbard (hubbard.alex@gmail.com)
 #' @export
 ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0.01, detect.lag.length = F, 
-                        log.vars = NULL, ur.vars = NULL, n_states = 2,
+                        log.vars = NULL, ur.vars = NULL, n_states = 2, ms_var = F,
                         formulas = c("y ~ c + e.l1 + e.l2"), prior = "estimate",
                         optim_methods = c("BFGS", "CG", "NM"), maxit = 1000, maxtrials = 10, trace = F){
   
@@ -325,6 +334,9 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   if(is.null(panelID)){
     panelID = "panelid"
     y[, "panelid" := "panel"]
+  }
+  if(!is.logical(ms_var)){
+    stop("ms_var must be T or F.")
   }
   vars = colnames(y)[!colnames(y) %in% c(panelID, timeID)]
   
@@ -514,6 +526,14 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
       names(coeff)[length(coeff)] = paste0("sigma", idx)
       return(coeff)
     })))
+    if(ms_var == T){
+      theta = c(theta, sd_ = rep(1, n_states))
+      if(n_states == 2){
+        names(theta)[grepl("sd_", names(theta))] = paste0("sd_", c("d", "u"))
+      }else if(n_states == 3){
+        names(theta)[grepl("sd_", names(theta))] = paste0("sd_", c("d", "m", "u"))
+      }
+    }
     suppressWarnings(rm(up, mid, down))
   }
   if(all(prior == "uninformative")){
@@ -523,6 +543,14 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     theta[grepl("sig", names(theta))] = 1
     theta[grepl("mu_d", names(theta))] = -1.5
     theta[grepl("mu_u", names(theta))] = 1.5
+    if(ms_var == T){
+      theta = c(theta, sd_ = rep(1, n_states))
+      if(n_states == 2){
+        names(theta)[grepl("sd_", names(theta))] = paste0("sd_", c("d", "u"))
+      }else if(n_states == 3){
+        names(theta)[grepl("sd_", names(theta))] = paste0("sd_", c("d", "m", "u"))
+      }
+    }
   }
   if(is.null(theta) & is.numeric(prior)){
     theta = prior

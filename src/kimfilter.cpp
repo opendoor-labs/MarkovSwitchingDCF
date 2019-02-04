@@ -15,6 +15,7 @@
 #ifdef _OPENMP
 #include <omp.h>
 #endif
+
 // R's implementation of the Moore-Penrose pseudo matrix inverse
 // [[Rcpp::export]]
 arma::mat Rginv(arma::mat m){
