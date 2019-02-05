@@ -196,7 +196,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
       //Joint probabilties conditional on t
       //Pr[S_t=j,S_{t-1}=i|Y_t] = f[y_t|S_t=j,S_{t-1}=i,Y_{t-1}]*Pr[S_t=j,S{t-1}=i|Yt]/f[y_t|Y_{t-1}]
       //PRO^{i,j} = PR_VL^{i,j}/Pr_val
-      if(arma::as_scalar(Pr_val) > 0){
+      if(arma::as_scalar(Pr_val) > tol){
         PROss.slice(s) = PR_VLss.slice(s)/arma::as_scalar(Pr_val);
       }else{
         PROss.slice(s) = PR_VLss.slice(s);
