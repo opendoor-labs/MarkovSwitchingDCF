@@ -13,16 +13,16 @@ ss_prob <- function(mat) {
     .Call(`_MarkovSwitchingDCF_ss_prob`, mat)
 }
 
-v_prob <- function(EV, HE) {
-    .Call(`_MarkovSwitchingDCF_v_prob`, EV, HE)
+v_prob <- function(N_TL, F_TL) {
+    .Call(`_MarkovSwitchingDCF_v_prob`, N_TL, F_TL)
 }
 
 kim_filter <- function(B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt) {
     .Call(`_MarkovSwitchingDCF_kim_filter`, B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt)
 }
 
-kim_smoother <- function(B_tlss, B_tts, P_tlss, P_tts, Pr_tls, Pr_tts, At, Dt, Ft, Ht, Qt, Rt, Tr_mat) {
-    .Call(`_MarkovSwitchingDCF_kim_smoother`, B_tlss, B_tts, P_tlss, P_tts, Pr_tls, Pr_tts, At, Dt, Ft, Ht, Qt, Rt, Tr_mat)
+kim_smoother <- function(B_tlss, B_tts, B_tt, P_tlss, P_tts, Pr_tls, Pr_tts, At, Dt, Ft, Ht, Qt, Rt, Tr_mat) {
+    .Call(`_MarkovSwitchingDCF_kim_smoother`, B_tlss, B_tts, B_tt, P_tlss, P_tts, Pr_tls, Pr_tts, At, Dt, Ft, Ht, Qt, Rt, Tr_mat)
 }
 
 rcpparma_hello_world <- function() {

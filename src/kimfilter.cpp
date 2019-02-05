@@ -67,8 +67,8 @@ arma::mat ss_prob(arma::mat mat){
 
 // Likelihood function for the Kim filter
 // [[Rcpp::export]]
-arma::mat v_prob(arma::mat EV, arma::mat HE){
-  return (1/sqrt(det(HE)))*exp(-0.5*EV.t() * gen_inv(HE) * EV); //Pr[Yt|S_t,Yt-1]
+arma::mat v_prob(arma::mat N_TL, arma::mat F_TL){
+  return (1/sqrt(det(F_TL)))*exp(-0.5*N_TL.t() * gen_inv(F_TL) * N_TL); //Pr[Yt|S_t,Yt-1]
 }
 
 // [[Rcpp::export]]
@@ -289,7 +289,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
 //sourceCpp("/Users/alexhubbard/Dropbox (Opendoor)/R Codes/Packages/MarkovSwitchingDCF/src/kimfilter.cpp")
 
 // [[Rcpp::export]]
-Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::field<arma::cube> P_tlss, arma::field<arma::cube> P_tts,
+Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arma::field<arma::cube> P_tlss, arma::field<arma::cube> P_tts,
                        arma::mat Pr_tls, arma::mat Pr_tts, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht,
                        arma::cube Qt, arma::cube Rt, arma::mat Tr_mat){
   
@@ -299,7 +299,6 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::field<arma::c
   arma::cube B_tTss(Ft.n_rows, 1, n_states*n_states, arma::fill::zeros);
   arma::cube P_tTss(Ft.n_rows, Ft.n_rows, n_states*n_states, arma::fill::zeros);
   arma::cube Pr_tTss(1, 1, n_states*n_states, arma::fill::zeros);
-  arma::mat B_tt(B_tlss.n_cols, Ft.n_rows, arma::fill::zeros);
   
   arma::cube A_tt(At.n_rows, At.n_cols, B_tlss.n_cols, arma::fill::zeros);
   arma::cube H_tt(Ht.n_rows, Ht.n_cols, B_tlss.n_cols, arma::fill::zeros);

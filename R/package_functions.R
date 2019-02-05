@@ -24,7 +24,7 @@ trans = function(c0){
   cc[names(cc) %in% ss] = 1/(1 + exp(-c0[names(c0) %in% ss]))
   if(length(states) > 2){
     for(s in states){
-      cc[names(cc)[grepl("p_", names(cc)) & !names(cc) %in% ss & substr(names(cc), 3, 3) == s]] = -cc[names(cc) %in% ss & substr(names(cc), 3, 3) == s] + 1/(1 + exp(-c0[names(c0)[grepl("p_", names(c0)) & !names(c0) %in% ss & substr(names(c0), 3, 3) == s]]))
+      cc[names(cc)[grepl("p_", names(cc)) & !names(cc) %in% ss & substr(names(cc), 3, 3) == s]] =  (1 - cc[names(cc) %in% ss & substr(names(cc), 3, 3) == s])/(1 + exp(-c0[names(c0)[grepl("p_", names(c0)) & !names(c0) %in% ss & substr(names(c0), 3, 3) == s]]))
     }
   }
   
@@ -32,8 +32,9 @@ trans = function(c0){
   cc[grepl("mu_d", names(cc))] = -exp(c0[grepl("mu_d", names(c0), ignore.case = T)])
   cc[grepl("mu_u", names(cc))] = exp(c0[grepl("mu_u", names(c0), ignore.case = T)])
   
-  #Force sd multiples to be positive
-  cc[grepl("sd_", names(cc))] = abs(cc[grepl("sd_", names(cc))])
+  #Force sd multiples and sigma parameters to be positive
+  cc[grepl("sd_", names(cc))] = abs(c0[grepl("sd_", names(c0))])
+  cc[grepl("sigma", names(cc))] = abs(c0[grepl("sigma", names(c0))])
   
   return(cc)
 }
@@ -68,7 +69,7 @@ init_trans = function(cc){
   c0[names(c0) %in% ss] = log(cc[names(cc) %in% ss]/(1 - cc[names(cc) %in% ss]))
   if(length(states) > 2){
     for(s in states){
-      c0[names(c0)[grepl("p_", names(c0)) & !names(c0) %in% ss & substr(names(c0), 3, 3) == s]] = log(sum(cc[grepl("p_", names(cc)) & substr(names(cc), 3, 3) == s])/(1 - sum(cc[grepl("p_", names(cc)) & substr(names(cc), 3, 3) == s])))
+      c0[names(c0)[grepl("p_", names(c0)) & !names(c0) %in% ss & substr(names(c0), 3, 3) == s]] = log(cc[names(c0)[grepl("p_", names(cc)) & !names(cc) %in% ss & substr(names(cc), 3, 3) == s]]/(1 - sum(cc[grepl("p_", names(cc)) & substr(names(cc), 3, 3) == s])))
     }
   }
   
@@ -95,7 +96,7 @@ init_trans = function(cc){
 #' SSmodel_ms(par, yt, panelID, timeID)
 #' @author Alex Hubbard (hubbard.alex@gmail.com)
 #' @export
-SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = NULL){
+SSmodel_ms = function(par, yt, n_states, ms_var, panelID = NULL, timeID = NULL, init = NULL){
   #Get the parameters
   vars = dimnames(yt)[which(unlist(lapply(dimnames(yt), function(x){!is.null(x)})))][[1]]
   vars = vars[!vars %in% c(panelID, timeID)]
@@ -113,9 +114,9 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
   names(sd) = gsub("sd_", "", names(sd))
   pr = par[grepl("p_", names(par))]
   names(pr) = gsub("p_", "", names(pr))
-  if(length(sd) == 0){
-    sd = rep(1, length(mu))
-    names(sd) = names(mu)
+  if(length(sd) == 0 & n_states > 1 & is.finite(n_states)){
+    sd = rep(1, n_states)
+    names(sd) = substr(names(pr[substr(names(pr), 1, 1) == substr(names(pr), 2, 2)]), 1, 1)
   }
   
   #Build the transition equation matrix
@@ -133,7 +134,17 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
     rownames(Fm)[rownames(Fm) == ""] = paste0("ct", 2:(1 + length(rownames(Fm)[rownames(Fm) == ""])))
     diag(Fm[paste0("ct", 1:(max(table(substr(names(gamma)[nchar(names(gamma)) == 2], 1, 1))))), paste0("ct", 1:(max(table(substr(names(gamma)[nchar(names(gamma)) == 2], 1, 1)))))]) = 1
   }
-  if(n_states == 2){
+  if(is.infinite(n_states)){
+    Fm = cbind(matrix(0, nrow = nrow(Fm), ncol = 1), Fm)
+    Fm = rbind(matrix(0, nrow = 1, ncol = ncol(Fm)), Fm)
+    colnames(Fm)[1] = "mt1"
+    rownames(Fm)[1] = "mt0"
+    Fm[c("mt0", "ct0"), "mt1"] = 1
+  }
+  if(n_states == 1 | is.infinite(n_states)){
+    Fm = array(c(Fm), dim = c(nrow(Fm), ncol(Fm), 1),
+               dimnames = list(rownames(Fm), colnames(Fm), c("m")))
+  }else if(n_states == 2){
     Fm = array(c(Fm, Fm), dim = c(nrow(Fm), ncol(Fm), n_states),
                dimnames = list(rownames(Fm), colnames(Fm), c("d", "u")))
   }else if(n_states == 3){
@@ -155,13 +166,19 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
   }
   Hm = cbind(Hm, matrix(0, nrow = nrow(Hm), ncol = length(psi)))
   rownames(Hm) = vars
+  if(is.infinite(n_states)){
+    Hm = cbind(matrix(0, nrow = nrow(Hm), ncol = 1), Hm)
+  }
   colnames(Hm) = rownames(Fm)  
   if(is.matrix(Hm[, grepl(paste0("e", paste0(1:length(vars), "0"), collapse = "|"), colnames(Hm))])){
     diag(Hm[, grepl(paste0("e", paste0(1:length(vars), "0"), collapse = "|"), colnames(Hm))]) = 1
   }else{
     Hm[, grepl(paste0("e", paste0(1:length(vars), "0"), collapse = "|"), colnames(Hm))] = 1
   }
-  if(n_states == 2){
+  if(n_states == 1 | is.infinite(n_states)){
+    Hm = array(c(Hm), dim = c(nrow(Hm), ncol(Hm), 1),
+               dimnames = list(rownames(Hm), colnames(Hm), c("m")))
+  }else if(n_states == 2){
     Hm = array(c(Hm, Hm), dim = c(nrow(Hm), ncol(Hm), n_states),
                dimnames = list(rownames(Hm), colnames(Hm), c("d", "u")))
   }else if(n_states == 3){
@@ -174,12 +191,18 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
   Qm = matrix(0, ncol = ncol(Fm), nrow = nrow(Fm))
   rownames(Qm) = rownames(Fm)
   colnames(Qm) = rownames(Qm)
-  diag(Qm[rownames(Qm)[substr(rownames(Qm), nchar(rownames(Qm)), nchar(rownames(Qm))) == "0"], rownames(Qm)[substr(rownames(Qm), nchar(rownames(Qm)), nchar(rownames(Qm))) == "0"]]) = c(1, sig^2)
-  if(n_states == 2){
+  diag(Qm[c("ct0", paste0("e", 1:nrow(Hm), 0)), c("ct0", paste0("e", 1:nrow(Hm), 0))]) = c(1, sig[names(sig) %in% as.character(1:nrow(Hm))]^2)
+  if(is.infinite(n_states)){
+    Qm["mt0", "mt0"] = sig["M"]
+  }
+  if(n_states == 1 | is.infinite(n_states)){
+    Qm = array(c(Qm), dim = c(nrow(Qm), ncol(Qm), 1),
+               dimnames = list(rownames(Qm), colnames(Qm), c("m")))
+  }else if(n_states == 2){
     Qm = array(c(sd["d"]*Qm, sd["u"]*Qm), dim = c(nrow(Qm), ncol(Qm), n_states),
                dimnames = list(rownames(Qm), colnames(Qm), c("d", "u")))
   }else if(n_states == 3){
-    Qm = array(c(sd["d"]*Qm, sd["m"]*Qm, sd["u"]*Qm), dim = c(nrow(Qm), ncol(Qm), n_states),
+    Qm = array(c(sd["d"]*Qm, Qm, sd["u"]*Qm), dim = c(nrow(Qm), ncol(Qm), n_states),
                dimnames = list(rownames(Qm), colnames(Qm), c("d", "m", "u")))
   }
   
@@ -187,7 +210,10 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
   Rm = matrix(0, ncol = nrow(Hm), nrow = nrow(Hm))#diag(x = sig^2, nrow = length(sig), ncol = length(sig))
   colnames(Rm) = vars
   rownames(Rm) = vars
-  if(n_states == 2){
+  if(n_states == 1 | is.infinite(n_states)){
+    Rm = array(c(Rm), dim = c(nrow(Rm), ncol(Rm), 1),
+               dimnames = list(rownames(Rm), colnames(Rm), c("m")))
+  }else if(n_states == 2){
     Rm = array(c(Rm, Rm), dim = c(nrow(Rm), ncol(Rm), n_states),
                dimnames = list(rownames(Rm), colnames(Rm), c("d", "u")))
   }else if(n_states == 3){
@@ -197,20 +223,24 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
   
   #Tranistion equation intercept matrix
   #The Markov-switching mean matrix
-  D_d = t(t(c(ifelse(length(mu[grepl("d", tolower(names(mu)))]) == 0, 0, mu[grepl("d", tolower(names(mu)))]), rep(0, ncol(Fm) - 1))))
-  D_u = t(t(c(ifelse(length(mu[grepl("u", tolower(names(mu)))]) == 0, 0, mu[grepl("u", tolower(names(mu)))]), rep(0, ncol(Fm) - 1))))
-  if(n_states == 2){
-    Dm = array(c(D_d = D_d, D_u = D_u), dim = c(nrow(Fm), 1, n_states),
+  Dm = matrix(c(1, rep(0, nrow(Fm) - 1)), nrow = nrow(Fm), ncol = 1)
+  if(n_states == 1 | is.infinite(n_states)){
+    Dm = array(c(Dm/Inf), dim = c(nrow(Fm), 1, 1),
+               dimnames = list(rownames(Fm), NULL, c("m")))
+  }else if(n_states == 2){
+    Dm = array(c(mu[grepl("d", names(mu))]*Dm, mu[grepl("u", names(mu))]*Dm), dim = c(nrow(Fm), 1, n_states),
                dimnames = list(rownames(Fm), NULL, c("d", "u")))
   }else if(n_states == 3){
-    D_m = t(t(c(ifelse(length(mu[grepl("m", tolower(names(mu)))]) == 0, 0, mu[grepl("m", tolower(names(mu)))]), rep(0, ncol(Fm) - 1))))
-    Dm = array(c(D_d = D_d, D_m = D_m, D_u = D_u), dim = c(nrow(Fm), 1, n_states),
+    Dm = array(c(mu[grepl("d", names(mu))]*Dm, Dm/Inf, mu[grepl("u", names(mu))]*Dm), dim = c(nrow(Fm), 1, n_states),
                dimnames = list(rownames(Fm), NULL, c("d", "m", "u")))
   }
   
   #Observaton equation intercept matrix
   Am = matrix(0, nrow = nrow(Hm), ncol = 1)
-  if(n_states == 2){
+  if(n_states == 1 | is.infinite(n_states)){
+    Am = array(c(Am), dim = c(nrow(Am), ncol(Am), 1),
+               dimnames = list(rownames(Hm), NULL, c("m")))
+  }else if(n_states == 2){
     Am = array(c(Am, Am), dim = c(nrow(Am), ncol(Am), n_states),
                dimnames = list(rownames(Hm), NULL, c("d", "u")))
   }else if(n_states == 3){
@@ -219,20 +249,18 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
   }
   
   #Steady state probabilities
-  Tr_mat = matrix(0, nrow = n_states, ncol = n_states)
-  rownames(Tr_mat) = colnames(Tr_mat) = unique(unlist(lapply(names(pr), function(x){strsplit(x, "")[[1]][2]})))
+  Tr_mat = matrix(NA, nrow = ifelse(is.finite(n_states), n_states, 1), ncol = ifelse(is.finite(n_states), n_states, 1))
+  rownames(Tr_mat) = colnames(Tr_mat) = dimnames(Am)[[3]]
   for(j in names(pr)){
     Tr_mat[strsplit(j, "")[[1]][2], strsplit(j, "")[[1]][1]] = pr[j]
   }
-  for(j in names(which(apply(Tr_mat, 2, sum) != 0))){
-    row = rownames(Tr_mat)[!rownames(Tr_mat) %in% substr(names(pr)[substr(names(pr), 1, 1) == j], 2, 2)]
-    row = row[!row %in% names(which(apply(Tr_mat, 2, sum) == 0))]
-    Tr_mat[row, j] = 1 - sum(Tr_mat[names(which(apply(Tr_mat, 2, sum) != 0)), j])
+  for(j in 1:ncol(Tr_mat)){
+    Tr_mat[which(is.na(Tr_mat[, j])), j] = 1 - sum(Tr_mat[, j], na.rm = T)
   }
   
   #Initialize the filter for each state
   if(is.null(init)){
-    B0 = array(unlist(lapply(colnames(Tr_mat), function(x){MASS::ginv(diag(ncol(Fm[,, x])) - Fm[,, x]) %*% Dm[,, x]})),
+    B0 = array(unlist(lapply(colnames(Tr_mat), function(x){MASS::ginv(diag(ncol(Fm[,, x])) - Fm[,, x]) %*% as.matrix(Dm[,, x])})),
              dim = dim(Dm), dimnames = dimnames(Dm))
   }else{
     B0 = init[["B0"]]
@@ -240,9 +268,13 @@ SSmodel_ms = function(par, yt, n_states, panelID = NULL, timeID = NULL, init = N
   if(is.null(init)){
     VecP0 = array(unlist(lapply(colnames(Tr_mat), function(x){MASS::ginv(diag(prod(dim(Fm[,, x]))) - kronecker(Fm[,, x], Fm[,, x])) %*% matrix(as.vector(Qm[,, x]), ncol = 1)})),
                          dim = dim(Dm), dimnames = list(NULL, NULL, colnames(Tr_mat)))    
-                         
     P0 = array(unlist(lapply(colnames(Tr_mat), function(x){matrix(VecP0[, 1, x], ncol = ncol(Fm))})), 
                dim = c(nrow(Fm), ncol(Fm), dim(B0)[3]), dimnames = dimnames(Qm))
+    for(i in 1:dim(P0)[3]){
+      if(any(diag(P0[,,i]) < 0)){
+        diag(P0[,,i]) = 1
+      }
+    }
   }else{
     P0 = init[["P0"]]
   }
@@ -327,8 +359,12 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   }else{
     trace = 2
   }
-  if(n_states < 2 | n_states > 3){
-    stop("n_states must be 2 or 3.")
+  if(!n_states %in% c(1, 2, 3, Inf)){
+    stop("n_states must be 1, 2, 3, or Inf.")
+  }
+  if(is.infinite(n_states) & ms_var == T){
+    warning("Infinite state variance not allowed. Model will contain a constant variance structure.")
+    ms_var = T
   }
   
   if(is.null(panelID)){
@@ -398,13 +434,11 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
       c = y[eval(parse(text = panelID)) == x, ]$c
       return(forecast::Arima(c[which((c - mean(c, na.rm = T))/sd(c, na.rm = T) > 0.44)], order = c(2, 0, 0), include.mean = T))
     })
-    if(n_states == 3){
-      mid = lapply(unique(y[, c(panelID), with = F][[1]]), function(x){
-        c = y[eval(parse(text = panelID)) == x, ]$c
-        return(forecast::Arima(c[which((c - mean(c, na.rm = T))/sd(c, na.rm = T) <= 0.44 & (c - mean(c, na.rm = T))/sd(c, na.rm = T) >= -0.44)], order = c(2, 0, 0), include.mean = F))
-      })
-      names(mid) = unique(y[, c(panelID), with = F][[1]])
-    }
+    mid = lapply(unique(y[, c(panelID), with = F][[1]]), function(x){
+      c = y[eval(parse(text = panelID)) == x, ]$c
+      return(forecast::Arima(c[which((c - mean(c, na.rm = T))/sd(c, na.rm = T) <= 0.44 & (c - mean(c, na.rm = T))/sd(c, na.rm = T) >= -0.44)], order = c(2, 0, 0), include.mean = F))
+    })
+    names(mid) = unique(y[, c(panelID), with = F][[1]])
     down = lapply(unique(y[, c(panelID), with = F][[1]]), function(x){
       c = y[eval(parse(text = panelID)) == x, ]$c
       return(forecast::Arima(c[which((c - mean(c, na.rm = T))/sd(c, na.rm = T) < -0.44)], order = c(2, 0, 0), include.mean = T))
@@ -413,20 +447,15 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     
     theta = colMeans(do.call("rbind", lapply(names(up), function(x){
       c = y[eval(parse(text = panelID)) == x, ]$c
-      if(n_states == 2){
-        coeff = data.table(cbind(up = up[[x]]$coef, down = down[[x]]$coef), keep.rownames = T)
-        coeff[, "m" := up*length(c[c > 0])/length(c) + down*length(c[c < 0])/length(c)]
-      }else if(n_states == 3){
-        coeff = data.table::data.table(cbind(up = up[[x]]$coef, mid = c(mid[[x]]$coef, 0), down = down[[x]]$coef), keep.rownames = T)
-        coeff[, "m" := up*length(c[c > quantile(c, probs = 0.67, na.rm = T)])/length(c) + 
-                mid*length(c[c >= quantile(c, probs = 0.33, na.rm = T) & c <= quantile(c, probs = 0.67, na.rm = T)])/length(c) + 
-                down*length(c[c < quantile(c, probs = 0.33, na.rm = T)])/length(c)]
+      coeff = data.table::data.table(cbind(up = up[[x]]$coef, mid = c(mid[[x]]$coef, 0), down = down[[x]]$coef), keep.rownames = T)
+      coeff[, "m" := up*length(c[which((c - mean(c, na.rm = T))/sd(c, na.rm = T) > 0.44)])/length(c) + 
+              mid*length(c[which((c - mean(c, na.rm = T))/sd(c, na.rm = T) <= 0.44 & (c - mean(c, na.rm = T))/sd(c, na.rm = T) >= -0.44)])/length(c) + 
+              down*length(c[which((c - mean(c, na.rm = T))/sd(c, na.rm = T) < -0.44)])/length(c)]
+      if(n_states > 1 & is.finite(n_states)){
+        return(c(ar = coeff[grepl("ar", rn), ]$m, mu_u = coeff[rn == "intercept", ]$up, mu_d = coeff[rn == "intercept", ]$down))
+      }else{
+        return(c(ar = coeff[grepl("ar", rn), ]$m))
       }
-      ret = c(ar = coeff[grepl("ar", rn), ]$m, mu_u = coeff[rn == "intercept", ]$up, mu_d = coeff[rn == "intercept", ]$down)
-      if(n_states == 3){
-        ret = c(ret, mu_m = coeff[rn == "intercept", ]$mid)
-      }
-      return(ret)
     })))
     names(theta) = gsub("ar", "phi", names(theta))
     
@@ -437,14 +466,16 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     # y[, "S_dd" := ifelse(S_d == 1 & data.table::shift(S_d, type = "lead", n = 1) == 1, 1, 0)]
     # y[, "S_uu" := ifelse(S_u == 1 & data.table::shift(S_u, type = "lead", n = 1) == 1, 1, 0)]
     # if(n_states == 3){
-    #   y[, "S_m" := ifelse((cd - mean(cd, na.rm = T))/sd(cd, na.rm = T) >= -0.44 & 
+    #   y[, "S_m" := ifelse((cd - mean(cd, na.rm = T))/sd(cd, na.rm = T) >= -0.44 &
     #                         (cd - mean(cd, na.rm = T))/sd(cd, na.rm = T) <= 0.44, 1, 0)]
     #   y[, "S_mm" := ifelse(S_m == 1 & data.table::shift(S_m, type = "lead", n = 1) == 1, 1, 0)]
     # }
     
-    theta = c(theta, 
+    if(n_states == 2){
+      theta = c(theta, 
               p_dd = 0.95, #sum(y$S_dd, na.rm = T)/sum(y$S_d, na.rm = T),
               p_uu = 0.95)#sum(y$S_uu, na.rm = T)/sum(y$S_u, na.rm = T))
+    }
     if(n_states == 3){
       theta = c(theta, 
                 p_dm = (1 - 0.95)/2, #(1 - sum(y$S_dd, na.rm = T)/sum(y$S_d, na.rm = T))/2,
@@ -526,13 +557,11 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
       names(coeff)[length(coeff)] = paste0("sigma", idx)
       return(coeff)
     })))
-    if(ms_var == T){
-      theta = c(theta, sd_ = rep(1, n_states))
-      if(n_states == 2){
-        names(theta)[grepl("sd_", names(theta))] = paste0("sd_", c("d", "u"))
-      }else if(n_states == 3){
-        names(theta)[grepl("sd_", names(theta))] = paste0("sd_", c("d", "m", "u"))
-      }
+    if(ms_var == T & n_states > 1 & is.finite(n_states)){
+      theta = c(theta, sd_ = c(1.5, 0.5))
+      names(theta)[grepl("sd_", names(theta))] = paste0("sd_", c("d", "u"))
+    }else if(is.infinite(n_states)){
+      theta["sigmaM"] = 1
     }
     suppressWarnings(rm(up, mid, down))
   }
@@ -543,13 +572,8 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     theta[grepl("sig", names(theta))] = 1
     theta[grepl("mu_d", names(theta))] = -1.5
     theta[grepl("mu_u", names(theta))] = 1.5
-    if(ms_var == T){
-      theta = c(theta, sd_ = rep(1, n_states))
-      if(n_states == 2){
-        names(theta)[grepl("sd_", names(theta))] = paste0("sd_", c("d", "u"))
-      }else if(n_states == 3){
-        names(theta)[grepl("sd_", names(theta))] = paste0("sd_", c("d", "m", "u"))
-      }
+    if(is.infinite(n_states)){
+      theta["sigmaM"] = 1
     }
   }
   if(is.null(theta) & is.numeric(prior)){
@@ -563,11 +587,11 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   `%fun%` = foreach::`%dopar%`
   
   #Get initial values for the filter
-  sp = SSmodel_ms(theta, yy_s, n_states, panelID, timeID)
+  sp = SSmodel_ms(theta, yy_s, n_states, ms_var, panelID, timeID)
   init = foreach::foreach(i = unique(y[, c(panelID), with = F][[1]]), .packages = c("data.table"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother")) %fun% {
     yti = t(yy_s[eval(parse(text = panelID)) == i, colnames(yy_s)[!colnames(yy_s) %in% c(panelID, timeID)], with = F])
     ret = kim_filter(sp$B0, sp$P0, sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
-    smooth = kim_smoother(ret$B_tlss, ret$B_tts, ret$P_tlss, ret$P_tts, ret$Pr_tls, ret$Pr_tts, 
+    smooth = kim_smoother(ret$B_tlss, ret$B_tts, ret$B_tt, ret$P_tlss, ret$P_tts, ret$Pr_tls, ret$Pr_tts, 
                        sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, Tr_mat = sp$Tr_mat)
     
     ret = list(B0 = array(unlist(lapply(1:dim(ret$B_tts)[3], function(x){matrix(ret$B_tts[,1,x], ncol = 1)})),
@@ -579,15 +603,15 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   names(init) = unique(yy_s[, c(panelID), with = F][[1]])
   #init = NULL
   
-  objective = function(par, n_states, panelID, timeID, init = NULL, na_locs = NULL){
+  objective = function(par, n_states, ms_var, panelID, timeID, init = NULL, na_locs = NULL){
     par = trans(par)
     yy_s = get("yy_s")
     toret = foreach::foreach(i = unique(yy_s[, c(panelID), with = F][[1]]), .packages = c("data.table"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother")) %fun% {
-      sp = SSmodel_ms(par, yy_s, n_states, panelID, timeID, init = init[[i]])
+      sp = SSmodel_ms(par, yy_s, n_states, ms_var, panelID, timeID, init = init[[i]])
       yti = t(yy_s[eval(parse(text = panelID)) == i, colnames(yy_s)[!colnames(yy_s) %in% c(panelID, timeID)], with = F])
       ans = kim_filter(sp$B0, sp$P0, sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
       if(!is.null(na_locs)){
-        # ans = kim_smoother(ans$B_tlss, ans$B_tts, ans$P_tlss, ans$P_tts, ans$Pr_tls, ans$Pr_tts,
+        # ans = kim_smoother(ans$B_tlss, ans$B_tts, ans$B_tt, ans$P_tlss, ans$P_tts, ans$Pr_tls, ans$Pr_tts,
         #                    sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, Tr_mat = sp$Tr_mat)
         fc = do.call("cbind", lapply(1:nrow(ans$B_tt), function(x){ans$H_tt[,,x] %*% ans$B_tt[x, ]}))
         rownames(fc) = rownames(yti)
@@ -626,15 +650,15 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   theta = init_trans(theta)
   out = tryCatch(maxLik::maxLik(logLik = objective, start = theta, method = optim_methods[1],
                                 finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit),
-                                na_locs = na_locs, n_states = n_states, panelID = panelID, timeID = timeID, init = init),
+                                na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init),
                  error = function(err){
                    tryCatch(maxLik::maxLik(logLik = objective, start = theta, method = optim_methods[min(c(2, length(optim_methods)))],
                                            finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit),
-                                           na_locs = na_locs, n_states = n_states, panelID = panelID, timeID = timeID, init = init),
+                                           na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init),
                             error = function(err){
                               tryCatch(maxLik::maxLik(logLik = objective, start = theta, method = optim_methods[min(c(3, length(optim_methods)))],
                                                       finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit),
-                                                      na_locs = na_locs, n_states = n_states, panelID = panelID, timeID = timeID, init = init),
+                                                      na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init),
                                        error = function(err){NULL})
                             })
                  })
@@ -645,15 +669,15 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     while(out$code != 0 & trials < maxtrials){
       out2 = tryCatch(maxLik::maxLik(logLik = objective, start = coef(out), method = optim_methods[1],
                                      finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit), 
-                                     na_locs = na_locs, n_states = n_states, panelID = panelID, timeID = timeID, init = init),
+                                     na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init),
                       error = function(err){
                         tryCatch(maxLik::maxLik(logLik = objective, start = coef(out), method = optim_methods[min(c(2, length(optim_methods)))],
                                                 finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit),
-                                                na_locs = na_locs, n_states = n_states, panelID = panelID, timeID = timeID, init = init),
+                                                na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init),
                                  error = function(err){
                                    tryCatch(maxLik::maxLik(logLik = objective, start = coef(out), method = optim_methods[min(c(3, length(optim_methods)))],
                                                            finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit),
-                                                           na_locs = na_locs, n_states = n_states, panelID = panelID, timeID = timeID, init = init),
+                                                           na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init),
                                             error = function(err){NULL})
                                  })
                       })
@@ -668,7 +692,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   }
   snow::stopCluster(cl)
   return(list(coef = trans(coef(out)), coef_init = trans(theta), convergence = out$code, loglik = out$maximum, panelID = panelID, timeID = timeID,
-              vars = vars, log.vars = log.vars, ur.vars = ur.vars, n_states = n_states, 
+              vars = vars, log.vars = log.vars, ur.vars = ur.vars, n_states = n_states, ms_var = ms_var, 
               formulas = formulas, prior = ifelse(is.numeric(prior), "given", prior)))
 }
 
@@ -724,7 +748,7 @@ ms_dcf_filter = function(y, model, plot = F){
   }
   
   #Filter the data using the estimated model
-  sp = SSmodel_ms(model$coef, yy_s, model$n_states, model$panelID, model$timeID)
+  sp = SSmodel_ms(model$coef, yy_s, model$n_states, model$ms_var, model$panelID, model$timeID)
   cl = parallel::makeCluster(min(c(length(unique(yy_s[, c(model$panelID), with = F][[1]])), parallel::detectCores())))
   doSNOW::registerDoSNOW(cl)
   invisible(snow::clusterCall(cl, function(x) .libPaths(x), .libPaths()))
@@ -732,13 +756,13 @@ ms_dcf_filter = function(y, model, plot = F){
   uc = foreach::foreach(i = unique(yy_s[, c(model$panelID), with = F][[1]]), .packages = c("data.table", "MASS"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother")) %fun% {
     yti = t(yy_s[eval(parse(text = model$panelID)) == i, colnames(yy_s)[!colnames(yy_s) %in% c(model$panelID, model$timeID)], with = F])
     init = kim_filter(sp$B0, sp$P0, sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
-    init = kim_smoother(init$B_tlss, init$B_tts, init$P_tlss, init$P_tts, init$Pr_tls, init$Pr_tts, 
+    init = kim_smoother(init$B_tlss, init$B_tts, init$B_tt, init$P_tlss, init$P_tts, init$Pr_tls, init$Pr_tts, 
                         sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat)
     init = list(B0 = array(unlist(lapply(1:dim(init$B_tts)[3], function(x){matrix(init$B_tts[,1,x], ncol = 1)})),
                            dim = dim(sp$B0)),
                 P0 = array(unlist(lapply(1:length(init$P_tts), function(x){init$P_tts[[x]][,,1]})),
                            dim = dim(sp$P0)))
-    sp2 = SSmodel_ms(model$coef, yy_s[eval(parse(text = model$panelID)) == i, ], model$n_states, model$panelID, model$timeID, init = init)
+    sp2 = SSmodel_ms(model$coef, yy_s[eval(parse(text = model$panelID)) == i, ], model$n_states, model$ms_var, model$panelID, model$timeID, init = init)
     ans = kim_filter(sp2$B0, sp2$P0, sp2$At, sp2$Dt, sp2$Ft, sp2$Ht, sp2$Qt, sp2$Rt, sp2$Tr_mat, yti)
     if(!is.null(na_locs)){
       fc = do.call("cbind", lapply(1:nrow(ans$B_tt), function(x){ans$H_tt[,,x] %*% ans$B_tt[x, ]}))
@@ -750,8 +774,11 @@ ms_dcf_filter = function(y, model, plot = F){
     }
     
     #Get the steady state Kalman gain approximation
-    Ht = Reduce("+", lapply(1:dim(sp2$Ht)[3], function(x){sp2$Ht[,, x]}))/dim(sp2$Ht)[3]
-    Ft = Reduce("+", lapply(1:dim(sp2$Ft)[3], function(x){sp2$Ft[,, x]}))/dim(sp2$Ft)[3]
+    Ht = Reduce("+", lapply(1:dim(ans$H_tt)[3], function(x){ans$H_tt[,, x]}))/dim(ans$H_tt)[3]
+    Ft = Reduce("+", lapply(1:dim(ans$F_tt)[3], function(x){ans$F_tt[,, x]}))/dim(ans$F_tt)[3]
+    rownames(Ht) = rownames(yti)
+    colnames(Ht) = colnames(Ft) = colnames(sp2$Ft[,, 1])
+    rownames(Ft) = rownames(sp2$Ft[,, 1])
     K = matrix(ans$K[,, dim(ans$K)[3]], nrow = dim(ans$K)[1], ncol = dim(ans$K)[2])
     W = MASS::ginv(diag(nrow(K)) - (diag(nrow(K)) - K %*% Ht) %*% Ft) %*% K
     means = unlist(yy_d[eval(parse(text = model$panelID)) == i, lapply(.SD, mean, na.rm = T), .SDcols = c(model$vars)])
@@ -761,13 +788,13 @@ ms_dcf_filter = function(y, model, plot = F){
     d = W[1, ] %*% means
     
     #Get the intercept terms
-    D = means - Ht %*% matrix(c(rep(d, length(colnames(Ft)[grepl("ct", colnames(Ft))])), rep(0, length(colnames(Ft)[grepl("e", colnames(Ft))]))), ncol = 1)
+    D = means - Ht[, grepl("ct", colnames(Ht))] %*% matrix(rep(d, nrow(Ht)))
     
     #Initialize first element of the dynamic common factor
     Y1 = as.matrix(yti[, 1])
     nonna_idx = which(!is.na(Y1))
     initC = function(par){
-      return(sum((as.matrix(Y1[nonna_idx, ]) - as.matrix(D[nonna_idx, ]) - as.matrix(Ht[nonna_idx, ]) %*% matrix(c(par, rep(0, length(colnames(Ft)[grepl("e", colnames(Ft))])))))^2))
+      return(sum((as.matrix(Y1[nonna_idx, ]) - as.matrix(D[nonna_idx, ]) - as.matrix(Ht[nonna_idx, grepl("ct", colnames(Ht))]) %*% matrix(par))^2))
     }
     C10 = optim(par = rep(mean(Y1)/mean(model$coef[grepl("gamma", names(model$coef))]), length(colnames(Ft)[grepl("ct", colnames(Ft))])), 
                 fn = initC, method = "BFGS", control = list(trace = F))$par[1]
@@ -777,20 +804,25 @@ ms_dcf_filter = function(y, model, plot = F){
     for(k in c("filter", "smooth")){
       Ctt = rep(C10, ncol(yti) + 1)
       if(k == "smooth"){
-        ans = kim_smoother(ans$B_tlss, ans$B_tts, ans$P_tlss, ans$P_tts, ans$Pr_tls, ans$Pr_tts, 
+        ans = kim_smoother(ans$B_tlss, ans$B_tts, ans$B_tt, ans$P_tlss, ans$P_tts, ans$Pr_tls, ans$Pr_tts, 
                            sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat)
       }
       
       #Build the rest of the DCF series
       #Rescale the first differenced DCF series to match that of the actual series
       ctt = c(0, (t(ans$B_tt[, dcf_loc]))*mean(sds)/sd(ans$B_tt[, dcf_loc]))
-      mutt = c(0, t(ans$D_tt[dcf_loc,,])*mean(sds)/sd(ans$B_tt[, dcf_loc]))
+      if(is.finite(model$n_states)){
+        mutt = c(0, t(ans$D_tt[dcf_loc,,])*mean(sds)/sd(ans$B_tt[, dcf_loc]))
+      }else{
+        m_loc = which(rownames(Ft) == "mt0")
+        mutt = c(0, t(ans$B_tt[, m_loc])*mean(sds)/sd(ans$B_tt[, m_loc]))
+      }
       for(j in 2:length(Ctt)){
         #First element of dCtt is C_22 - C_11 = dCtt_2
         Ctt[j] = ctt[j] + Ctt[j - 1] + c(d)
       }
-      Ctt = data.table::data.table(panelID = i, date = y[eval(parse(text = model$panelID)) == i, c(model$timeID), with = F][[1]], Ctt = Ctt, ctt = ctt, mutt = mutt)
-      colnames(Ctt) = c(model$panelID, model$timeID, "Ctt", "ctt", "mutt")
+      Ctt = data.table::data.table(panelID = i, date = y[eval(parse(text = model$panelID)) == i, c(model$timeID), with = F][[1]], DCF = Ctt, d.DCF = ctt, Mu = mutt)
+      colnames(Ctt) = c(model$panelID, model$timeID, "DCF", "d.DCF", "Mu")
       
       #Build the probability series
       prob = data.table::data.table(panelID = i, date = yy_s[eval(parse(text = model$panelID)) == i, c(model$timeID), with = F][[1]], data.table::data.table(ans$Pr_tts))
@@ -810,7 +842,7 @@ ms_dcf_filter = function(y, model, plot = F){
         toplot1[, "value2" := value - (value_start - mean(toplot1[eval(parse(text = model$timeID)) == min(eval(parse(text = model$timeID))), ]$value, na.rm = T))*9/10, by = "variable"]
         g1 = ggplot2::ggplot(toplot1) + 
           ggplot2::ggtitle(paste(ifelse(i == "panel" & model$panelID == "panelid", "", i), "Data Series"), subtitle = "Levels") + 
-          ggplot2::scale_y_continuous(name = "Log Levels (Intercept Adjusted)") + 
+          ggplot2::scale_y_continuous(name = "Levels (Intercept Adjusted)") + 
           ggplot2::scale_x_date(name = "") + 
           ggplot2::geom_line(ggplot2::aes(x = eval(parse(text = model$timeID)), y = value2, group = variable, color = variable)) + 
           ggplot2::theme_minimal() + ggplot2::theme(legend.position = "bottom") + ggplot2::guides(color = ggplot2::guide_legend(title = NULL))
@@ -825,38 +857,51 @@ ms_dcf_filter = function(y, model, plot = F){
           ggplot2::theme_minimal() + ggplot2::theme(legend.position = "bottom") + ggplot2::guides(color = ggplot2::guide_legend(title = NULL))
         
         toplot3 = melt(uc[[i]][[j]], id.vars = c(model$panelID, model$timeID))
-        d_range1 = range(toplot3[variable == "Ctt", ]$value, na.rm = T)
+        d_range1 = range(toplot3[variable == "DCF", ]$value, na.rm = T)
         p_range1 = range(toplot3[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_", colnames(uc[[i]][[j]]))], ]$value, na.rm = T)
         toplot3[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_", colnames(uc[[i]][[j]]))], "value" := (value - p_range1[1])/diff(p_range1) * diff(d_range1) + d_range1[1], by = "variable"]
         g3 = ggplot2::ggplot() +  
-          ggplot2::ggtitle(paste(ifelse(i == "panel" & model$panelID == "panelid", "", i), "Dynamic Common Factor"), subtitle = "Differenced") + 
-          ggplot2::scale_y_continuous(name = "Dynamic Common Factor", limits = range(toplot3[variable == "Ctt", ]$value, na.rm = T), 
-                                      sec.axis = ggplot2::sec_axis(name = "Probability of State (%)", ~((. - d_range1[1])/diff(d_range1) * diff(p_range1) + p_range1[1]) * 100)) + 
+          ggplot2::ggtitle(paste(ifelse(i == "panel" & model$panelID == "panelid", "", i), "Dynamic Common Factor"), subtitle = "Levels") + 
           ggplot2::scale_x_date(name = "") +
-          ggplot2::geom_ribbon(data = toplot3[variable %in% colnames(uc[[i]][[j]])[grepl(ifelse(model$n_states == 2, "Pr_d", "Pr_d|Pr_u"), colnames(uc[[i]][[j]]), ignore.case = T)], ], 
-                               ggplot2::aes(x = eval(parse(text = model$timeID)), ymin = d_range1[1], ymax = value, group = variable, fill = variable), alpha = 0.5) + 
           ggplot2::geom_hline(yintercept = 0, color = "grey") + 
-          ggplot2::geom_line(data = toplot3[variable == "Ctt", ], 
-                             ggplot2::aes(x = eval(parse(text = model$timeID)), y = value, group = variable, color = variable), color = "black") + 
+          ggplot2::geom_line(data = toplot3[variable == "DCF", ], 
+                             ggplot2::aes(x = eval(parse(text = model$timeID)), y = value, group = variable, color = variable)) + 
+          ggplot2::scale_color_manual(values = c("black")) + 
           ggplot2::theme_minimal() + ggplot2::theme(legend.position = "bottom") + 
           ggplot2::guides(color = ggplot2::guide_legend(title = NULL), fill = ggplot2::guide_legend(title = NULL))
+        if(model$n_states == 1 | is.infinite(model$n_states)){
+          g3 = g3 + ggplot2::scale_y_continuous(name = "Dynamic Common Factor", limits = range(toplot3[variable == "DCF", ]$value, na.rm = T))
+        }else{
+          g3 = g3 + 
+            ggplot2::scale_y_continuous(name = "Dynamic Common Factor", limits = range(toplot3[variable == "DCF", ]$value, na.rm = T), 
+                                        sec.axis = ggplot2::sec_axis(name = "Probability of State (%)", ~((. - d_range1[1])/diff(d_range1) * diff(p_range1) + p_range1[1]) * 100)) + 
+            ggplot2::geom_ribbon(data = toplot3[variable %in% colnames(uc[[i]][[j]])[grepl(ifelse(model$n_states == 2, "Pr_d", "Pr_d|Pr_u"), colnames(uc[[i]][[j]]), ignore.case = T)], ], 
+                                 ggplot2::aes(x = eval(parse(text = model$timeID)), ymin = d_range1[1], ymax = value, group = variable, fill = variable), alpha = 0.5) + 
+            ggplot2::scale_fill_manual(values = c("red", "green"))
+        }
         
         toplot4 = melt(uc[[i]][[j]], id.vars = c(model$panelID, model$timeID))
-        d_range2 = range(toplot4[variable == "ctt", ]$value, na.rm = T)
+        d_range2 = range(toplot4[variable %in% c("d.DCF", "Mu"), ]$value, na.rm = T)
         p_range2 = range(toplot4[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_", colnames(uc[[i]][[j]]))], ]$value, na.rm = T)
         toplot4[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_", colnames(uc[[i]][[j]]))], "value" := (value - p_range2[1])/diff(p_range2) * diff(d_range2) + d_range2[1], by = "variable"]
         g4 = ggplot2::ggplot() +  
           ggplot2::ggtitle(paste(ifelse(i == "panel" & model$panelID == "panelid", "", i), "Dynamic Common Factor"), subtitle = "Differenced") + 
-          ggplot2::scale_y_continuous(name = "Dynamic Common Factor", limits = range(toplot4[variable == "ctt", ]$value, na.rm = T), 
-                             sec.axis = ggplot2::sec_axis(name = "Probability of State (%)", ~((. - d_range2[1])/diff(d_range2) * diff(p_range2) + p_range2[1]) * 100)) + 
           ggplot2::scale_x_date(name = "") +
-          ggplot2::geom_ribbon(data = toplot4[variable %in% colnames(uc[[i]][[j]])[grepl(ifelse(model$n_states == 2, "Pr_d", "Pr_d|Pr_u"), colnames(uc[[i]][[j]]), ignore.case = T)], ], 
-                               ggplot2::aes(x = eval(parse(text = model$timeID)), ymin = d_range2[1], ymax = value, group = variable, fill = variable), alpha = 0.5) + 
           ggplot2::geom_hline(yintercept = 0, color = "grey") + 
-          ggplot2::geom_line(data = toplot4[variable == "ctt", ], 
-                             ggplot2::aes(x = eval(parse(text = model$timeID)), y = value, group = variable, color = variable), color = "black") + 
+          ggplot2::geom_line(data = toplot4[variable %in% c("d.DCF", "Mu"), ], 
+                             ggplot2::aes(x = eval(parse(text = model$timeID)), y = value, group = variable, color = variable)) + 
+          ggplot2::scale_color_manual(values = c("black", "blue")) + 
           ggplot2::theme_minimal() + ggplot2::theme(legend.position = "bottom") + 
           ggplot2::guides(color = ggplot2::guide_legend(title = NULL), fill = ggplot2::guide_legend(title = NULL))
+        if(model$n_states == 1 | is.infinite(model$n_states)){
+          g4 = g4 + ggplot2::scale_y_continuous(name = "Dynamic Common Factor", limits = range(toplot4[variable %in% c("d.DCF", "Mu"), ]$value, na.rm = T)) 
+        }else{
+          g4 = g4 + ggplot2::scale_y_continuous(name = "Dynamic Common Factor", limits = range(toplot4[variable %in% c("d.DCF", "Mu"), ]$value, na.rm = T), 
+                                                sec.axis = ggplot2::sec_axis(name = "Probability of State (%)", ~((. - d_range2[1])/diff(d_range2) * diff(p_range2) + p_range2[1]) * 100)) + 
+            ggplot2::geom_ribbon(data = toplot4[variable %in% colnames(uc[[i]][[j]])[grepl(ifelse(model$n_states == 2, "Pr_d", "Pr_d|Pr_u"), colnames(uc[[i]][[j]]), ignore.case = T)], ], 
+                                 ggplot2::aes(x = eval(parse(text = model$timeID)), ymin = d_range2[1], ymax = value, group = variable, fill = variable), alpha = 0.5) + 
+            ggplot2::scale_fill_manual(values = c("red", "green"))
+        }
         
         gridExtra::grid.arrange(g1, g2, g3, g4, layout_matrix = matrix(c(1, 3, 2, 4), nrow = 2),
                                 top = grid::textGrob(j, gp = grid::gpar(fontsize = 20, font = 3)))
