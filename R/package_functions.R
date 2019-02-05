@@ -792,7 +792,7 @@ ms_dcf_filter = function(y, model, plot = F){
     d = W[1, ] %*% means
     
     #Get the intercept terms
-    D = means - Ht[, grepl("ct", colnames(Ht))] %*% matrix(rep(d, nrow(Ht)))
+    D = means - Ht[, grepl("ct", colnames(Ht))] %*% matrix(rep(d, ncol(Ht[, grepl("ct", colnames(Ht))])))
     
     #Initialize first element of the dynamic common factor
     Y1 = as.matrix(yti[, 1])
