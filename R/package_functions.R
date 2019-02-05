@@ -33,8 +33,8 @@ trans = function(c0){
   cc[grepl("mu_u", names(cc))] = exp(c0[grepl("mu_u", names(c0), ignore.case = T)])
   
   #Force sd multiples and sigma parameters to be positive
-  cc[grepl("sd_", names(cc))] = abs(c0[grepl("sd_", names(c0))])
-  cc[grepl("sigma", names(cc))] = abs(c0[grepl("sigma", names(c0))])
+  cc[grepl("sd_", names(cc))] = exp(c0[grepl("sd_", names(c0))])
+  cc[grepl("sigma", names(cc))] = exp(c0[grepl("sigma", names(c0))])
   
   return(cc)
 }
@@ -76,6 +76,10 @@ init_trans = function(cc){
   #Force mu_d to be negative and mu_u to be positive
   c0[grepl("mu_d", names(c0))] = log(-(cc[grepl("mu_d", names(c0), ignore.case = T)]))
   c0[grepl("mu_u", names(c0))] = log(cc[grepl("mu_u", names(c0), ignore.case = T)])
+  
+  #Force sd multiples and sigma parameters to be positive
+  c0[grepl("sd_", names(c0))] = log(cc[grepl("sd_", names(cc))])
+  c0[grepl("sigma", names(c0))] = log(cc[grepl("sigma", names(cc))])
   
   c0[is.na(c0)] = 0
   
@@ -471,7 +475,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     #   y[, "S_mm" := ifelse(S_m == 1 & data.table::shift(S_m, type = "lead", n = 1) == 1, 1, 0)]
     # }
     
-    if(n_states == 2){
+    if(n_states > 1 & is.finite(n_states)){
       theta = c(theta, 
               p_dd = 0.95, #sum(y$S_dd, na.rm = T)/sum(y$S_d, na.rm = T),
               p_uu = 0.95)#sum(y$S_uu, na.rm = T)/sum(y$S_u, na.rm = T))
