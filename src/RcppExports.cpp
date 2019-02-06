@@ -39,18 +39,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// v_prob
-arma::mat v_prob(arma::mat N_TL, arma::mat F_TL);
-RcppExport SEXP _MarkovSwitchingDCF_v_prob(SEXP N_TLSEXP, SEXP F_TLSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< arma::mat >::type N_TL(N_TLSEXP);
-    Rcpp::traits::input_parameter< arma::mat >::type F_TL(F_TLSEXP);
-    rcpp_result_gen = Rcpp::wrap(v_prob(N_TL, F_TL));
-    return rcpp_result_gen;
-END_RCPP
-}
 // kim_filter
 Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht, arma::cube Qt, arma::cube Rt, arma::mat Tr_mat, arma::mat yt);
 RcppExport SEXP _MarkovSwitchingDCF_kim_filter(SEXP B0SEXP, SEXP P0SEXP, SEXP AtSEXP, SEXP DtSEXP, SEXP FtSEXP, SEXP HtSEXP, SEXP QtSEXP, SEXP RtSEXP, SEXP Tr_matSEXP, SEXP ytSEXP) {
@@ -143,7 +131,6 @@ static const R_CallMethodDef CallEntries[] = {
     {"_MarkovSwitchingDCF_Rginv", (DL_FUNC) &_MarkovSwitchingDCF_Rginv, 1},
     {"_MarkovSwitchingDCF_gen_inv", (DL_FUNC) &_MarkovSwitchingDCF_gen_inv, 1},
     {"_MarkovSwitchingDCF_ss_prob", (DL_FUNC) &_MarkovSwitchingDCF_ss_prob, 1},
-    {"_MarkovSwitchingDCF_v_prob", (DL_FUNC) &_MarkovSwitchingDCF_v_prob, 2},
     {"_MarkovSwitchingDCF_kim_filter", (DL_FUNC) &_MarkovSwitchingDCF_kim_filter, 10},
     {"_MarkovSwitchingDCF_kim_smoother", (DL_FUNC) &_MarkovSwitchingDCF_kim_smoother, 14},
     {"_MarkovSwitchingDCF_rcpparma_hello_world", (DL_FUNC) &_MarkovSwitchingDCF_rcpparma_hello_world, 0},

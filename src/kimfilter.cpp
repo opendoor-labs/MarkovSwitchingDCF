@@ -62,22 +62,21 @@ arma::mat ss_prob(arma::mat mat){
   
   arma::mat A = join_cols(A1.eye() - mat, One);
   arma::mat B = gen_inv(A.t() * A) * A.t();
-  return B * join_cols(Zero, One.submat(0, 0, 0, 0));;
-}
-
-// Likelihood function for the Kim filter
-// [[Rcpp::export]]
-arma::mat v_prob(arma::mat N_TL, arma::mat F_TL){
-  return (1/sqrt(det(F_TL)))*exp(-0.5*N_TL.t() * gen_inv(F_TL) * N_TL); //Pr[Yt|S_t,Yt-1]
+  return B * join_cols(Zero, One.submat(0, 0, 0, 0));
 }
 
 // [[Rcpp::export]]
 Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht,
                arma::cube Qt, arma::cube Rt, arma::mat Tr_mat, arma::mat yt){
   
-  //Define the storage lists
+  //Define variables
   int n_states = Tr_mat.n_cols;
-  double tol = 1E-06;
+  //double tol = 1E-06;
+  double lnl = 0.0;
+  double Pr_val = 0.0;
+  int s = 0;
+  
+  //Define the storage lists
   arma::cube B_tts(Ft.n_rows, yt.n_cols, n_states, arma::fill::zeros);
   arma::cube B_tlss(Ft.n_rows, yt.n_cols, n_states*n_states, arma::fill::zeros);
   arma::cube B_ttss(Ft.n_rows, yt.n_cols, n_states*n_states, arma::fill::zeros);
@@ -114,10 +113,6 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
   arma::cube D_tt(Dt.n_rows, Dt.n_cols, yt.n_cols, arma::fill::zeros);
   arma::cube F_tt(Ft.n_rows, Ft.n_cols, yt.n_cols, arma::fill::zeros);
   arma::cube Q_tt(Qt.n_rows, Qt.n_cols, yt.n_cols, arma::fill::zeros);
-
-  double lnl = 0.0;
-  double Pr_val = 0.0;
-  int s = 0;
   
   //Initialize the filter
   arma::cube B_lls = B0;
@@ -180,7 +175,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
         //PR_VL^{i,j} = v_prob(N^{i,j}_{t|t-1}, F^{i,j}_{t|t-1})*Pr_tl["d", "d"]
         //Ignore series with missing data
         // if(nonna_idx.is_empty()){ //If all series missing data
-          PR_VLss.slice(s) = v_prob(N_TLss.slice(s), F_TLss.slice(s)) * Pr_tl(st, stl);
+          PR_VLss.slice(s) = ((1/sqrt(det(F_TLss.slice(s)))) * exp(-0.5*N_TLss.slice(s).t() * gen_inv(F_TLss.slice(s)) * N_TLss.slice(s))) * Pr_tl(st, stl);
         // }else{
         //   PR_VLss.slice(s) = v_prob(N_TLss.slice(s).rows(nonna_idx),
         //                 F_TLss.slice(s)(nonna_idx, nonna_idx)) * Pr_tl(st, stl);
@@ -196,10 +191,10 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
       //Joint probabilties conditional on t
       //Pr[S_t=j,S_{t-1}=i|Y_t] = f[y_t|S_t=j,S_{t-1}=i,Y_{t-1}]*Pr[S_t=j,S{t-1}=i|Yt]/f[y_t|Y_{t-1}]
       //PRO^{i,j} = PR_VL^{i,j}/Pr_val
-      if(arma::as_scalar(Pr_val) > tol){
+      if(arma::as_scalar(Pr_val) > 0){
         PROss.slice(s) = PR_VLss.slice(s)/arma::as_scalar(Pr_val);
       }else{
-        PROss.slice(s) = PR_VLss.slice(s);
+        PROss.slice(s) = PR_VLss.slice(s)/arma::as_scalar(arma::datum::inf);
       }
     }
 
@@ -221,7 +216,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
         //B^{j}_{t|t} = (sum_{i}(PRO^{i,j}*B^{i,j}_{t|t}))/Pr[j]
         B_tts.slice(s).col(i) += arma::as_scalar(PROss.slice(s + j*n_states))*B_ttss.slice(s + j*n_states).col(i);
       }
-      if(arma::as_scalar(Pr(s, 0)) < tol){
+      if(arma::as_scalar(Pr(s, 0)) <= 0){
         B_tts.slice(s).col(i) /= arma::as_scalar(arma::datum::inf);
       }else{
         B_tts.slice(s).col(i) /= arma::as_scalar(Pr.row(s));
@@ -232,7 +227,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
         //K^{j} = (sum_{i}(PRO^{i,j}*K^{i,j}))/Pr[j]
         Ks.slice(s) += arma::as_scalar(PROss.slice(s + j*n_states))*Kss.slice(s + j*n_states);
       }
-      if(arma::as_scalar(Pr(s, 0)) < tol){
+      if(arma::as_scalar(Pr(s, 0)) <= 0){
         Ks.slice(s) /= arma::as_scalar(arma::datum::inf);
       }else{
         Ks.slice(s) /= arma::as_scalar(Pr.row(s));
@@ -244,7 +239,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
         arma::mat temp = B_tts.slice(s).col(i) - B_ttss.slice(s + j*n_states).col(i);
         P_tts(s).slice(i) += arma::as_scalar(PROss.slice(s + j*n_states))*(P_ttss(s + j*n_states).slice(i) + temp*temp.t());
       }
-      if(arma::as_scalar(Pr(s, 0)) < tol){
+      if(arma::as_scalar(Pr(s, 0)) <= 0){
         P_tts(s).slice(i) /= arma::as_scalar(arma::datum::inf);
       }else{
         P_tts(s).slice(i) /= arma::as_scalar(Pr.row(s));
@@ -293,9 +288,12 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
                        arma::mat Pr_tls, arma::mat Pr_tts, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht,
                        arma::cube Qt, arma::cube Rt, arma::mat Tr_mat){
   
+  //Define variables
   int n_states = Tr_mat.n_cols;
   int t = B_tts.slice(0).n_cols - 1;
-  double tol = 1E-06;
+  //double tol = 1E-06;
+  
+  //Define storage lists
   arma::cube B_tTss(Ft.n_rows, 1, n_states*n_states, arma::fill::zeros);
   arma::cube P_tTss(Ft.n_rows, Ft.n_rows, n_states*n_states, arma::fill::zeros);
   arma::cube Pr_tTss(1, 1, n_states*n_states, arma::fill::zeros);
@@ -322,7 +320,7 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
         //Full information inference on probabilities
         //Pr[S_t|Y_T]: #Pr[S_{t+1}=k|Y_T]*Pr[S_{t+1}=k|S_t=j]*Pr[S_t=j|Y_t]/Pr[S_{t+1}=k|Y_t]
         Pr_tTss.slice(s) = Pr_tts(i + 1, stf) * Tr_mat(stf, st) * Pr_tts(i, st);
-        if(arma::as_scalar(Pr_tls(i + 1, stf)) < tol){
+        if(arma::as_scalar(Pr_tls(i + 1, stf)) <= 0){
           Pr_tTss.slice(s) /= arma::as_scalar(arma::datum::inf);
         }else{
           Pr_tTss.slice(s) /= Pr_tls(i + 1, stf);
@@ -345,7 +343,7 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
       for(int j = n_states - 1; j >= 0; j--){
         B_tts.slice(s).col(i) += arma::as_scalar(Pr_tTss.slice((s + 1)*n_states - j - 1)) * B_tTss.slice((s + 1)*n_states - j - 1);
       }
-      if(arma::as_scalar(Pr_tts(i, s)) < tol){
+      if(arma::as_scalar(Pr_tts(i, s)) <= 0){
         B_tts.slice(s).col(i) /= arma::as_scalar(arma::datum::inf);
       }else{
         B_tts.slice(s).col(i) /= Pr_tts(i, s);
@@ -357,7 +355,7 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
         arma::mat temp = (B_tts.slice(s).col(i) - B_tTss.slice((s + 1)*n_states - j - 1));
         P_tts(s).slice(i) += arma::as_scalar(Pr_tTss.slice((s + 1)*n_states - j - 1))*(P_tTss.slice((s + 1)*n_states - j - 1) + temp * temp.t());
       }
-      if(arma::as_scalar(Pr_tts(i, s)) < tol){
+      if(arma::as_scalar(Pr_tts(i, s)) <= 0){
         P_tts(s).slice(i) /= arma::as_scalar(arma::datum::inf);
       }else{
         P_tts(s).slice(i) /= Pr_tts(i, s);
