@@ -13,6 +13,14 @@ ss_prob <- function(mat) {
     .Call(`_MarkovSwitchingDCF_ss_prob`, mat)
 }
 
+kalman_filter <- function(B0, P0, Dt, At, Ft, Ht, Qt, Rt, yt) {
+    .Call(`_MarkovSwitchingDCF_kalman_filter`, B0, P0, Dt, At, Ft, Ht, Qt, Rt, yt)
+}
+
+kalman_smoother <- function(B_tl, B_tt, P_tl, P_tt, Ft) {
+    .Call(`_MarkovSwitchingDCF_kalman_smoother`, B_tl, B_tt, P_tl, P_tt, Ft)
+}
+
 kim_filter <- function(B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt) {
     .Call(`_MarkovSwitchingDCF_kim_filter`, B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt)
 }
