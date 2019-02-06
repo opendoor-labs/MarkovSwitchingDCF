@@ -735,16 +735,24 @@ ms_dcf_filter = function(y, model, plot = F){
     Ht = Reduce("+", lapply(1:dim(ans$H_tt)[3], function(x){ans$H_tt[,, x]}))/dim(ans$H_tt)[3]
     Ft = Reduce("+", lapply(1:dim(ans$F_tt)[3], function(x){ans$F_tt[,, x]}))/dim(ans$F_tt)[3]
     rownames(Ht) = rownames(yti)
-    colnames(Ht) = colnames(Ft) = colnames(sp2$Ft[,, 1])
-    rownames(Ft) = rownames(sp2$Ft[,, 1])
-    K = matrix(ans$K[,, dim(ans$K)[3]], nrow = dim(ans$K)[1], ncol = dim(ans$K)[2])
-    W = MASS::ginv(diag(nrow(K)) - (diag(nrow(K)) - K %*% Ht) %*% Ft) %*% K
+    colnames(Ht) = rownames(Ft) = rownames(sp2$Ft[,, 1])
+    colnames(Ft) = colnames(sp2$Ft[,, 1])
+    dcf_loc = which(rownames(Ft) == "ct0")
     means = unlist(yy_d[eval(parse(text = model$panelID)) == i, lapply(.SD, mean, na.rm = T), .SDcols = c(model$vars)])
     sds = unlist(yy_d[eval(parse(text = model$panelID)) == i, lapply(.SD, sd, na.rm = T), .SDcols = c(model$vars)])
     
-    #W(1) is the first row of W
-    d = W[1, ] %*% means
-    
+    #Check fo convergence of Kt to steady state K
+    converge_test = data.table(d.k = diff(colMeans(ans$K[dcf_loc,,], na.rm = T)))
+    converge_test[, "window_rmsd" := sqrt(floor(0.2*.N)/(floor(0.2*.N) - 1) * frollmean(d.k^2, n = floor(0.2*.N), align = "right", algo = "exact"))]
+    if(converge_test[.N, ]$window_rmsd < 1E-04){
+      K = matrix(ans$K[,, dim(ans$K)[3]], nrow(ans$K), ncol(ans$K))
+      W = MASS::ginv(diag(nrow(K)) - (diag(nrow(K)) - K %*% Ht) %*% Ft) %*% K
+      #W(1) is the first row of W
+      d = W[1, ] %*% as.matrix(means)
+    }else{
+      d = sum(Ht[, dcf_loc]/sum(Ht[, dcf_loc]) * means)
+    }
+  
     #Get the intercept terms
     D = means - Ht[, grepl("ct", colnames(Ht))] %*% matrix(rep(d, ncol(Ht[, grepl("ct", colnames(Ht))])))
     
@@ -756,7 +764,7 @@ ms_dcf_filter = function(y, model, plot = F){
     }
     C10 = optim(par = rep(mean(Y1)/mean(model$coef[grepl("gamma", names(model$coef))]), length(colnames(Ft)[grepl("ct", colnames(Ft))])), 
                 fn = initC, method = "BFGS", control = list(trace = F))$par[1]
-    dcf_loc = which(rownames(Ft) == "ct0")
+    
     
     toret = list()
     for(k in c("filter", "smooth")){
