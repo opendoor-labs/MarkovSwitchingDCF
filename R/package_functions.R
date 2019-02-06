@@ -198,7 +198,7 @@ SSmodel_ms = function(par, yt, n_states, ms_var, panelID = NULL, timeID = NULL, 
   }
   Qm = array(Qm, dim = c(nrow(Qm), ncol(Qm), ifelse(is.infinite(n_states), 1, n_states)), dimnames = list(rownames(Qm), colnames(Qm), states))
   if(ms_var == T){
-    for(i in states){
+    for(i in names(sd)){
       Qm[,, i] = sd[i] * Qm[,, i]
     }
   }
