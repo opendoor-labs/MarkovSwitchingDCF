@@ -807,7 +807,6 @@ ms_dcf_filter = function(y, model, plot = F){
       for(i in unique(y[, c(model$panelID), with = F][[1]])){  
         toplot1 = melt(y[eval(parse(text = model$panelID)) == i, ], id.vars = c(model$panelID, model$timeID))
         toplot1[, "value2" := (value - min(value, na.rm = T))/(diff(range(value, na.rm = T))), by = c("variable")]
-        toplot1[, "value2" := mean(value, na.rm = T)/mean(toplot1$value, na.rm = T) + value2, by = c("variable")]
         g1 = ggplot2::ggplot(toplot1) + 
           ggplot2::ggtitle(paste(ifelse(i == "panel" & model$panelID == "panelid", "", i), "Data Series"), subtitle = "Levels") + 
           ggplot2::scale_y_continuous(name = "Levels (Rescaled)") + 
