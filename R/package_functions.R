@@ -212,7 +212,7 @@ SSmodel_ms = function(par, yt, n_states, ms_var, panelID = NULL, timeID = NULL, 
   #Tranistion equation intercept matrix
   #The Markov-switching mean matrix
   Dm = matrix(0, nrow = nrow(Fm), ncol = 1)
-  Dm = array(Dm, dim = c(nrow(Dm), 1, n_states), dimnames = list(rownames(Fm), NULL, states))
+  Dm = array(Dm, dim = c(nrow(Dm), 1, ifelse(is.infinite(n_states), 1, n_states)), dimnames = list(rownames(Fm), NULL, states))
   if(length(mu) > 0){
     for(i in names(mu)){
       Dm["ct0",, i] = mu[i]
@@ -221,18 +221,18 @@ SSmodel_ms = function(par, yt, n_states, ms_var, panelID = NULL, timeID = NULL, 
   
   #Observaton equation intercept matrix
   Am = matrix(0, nrow = nrow(Hm), ncol = 1)
-  Am = array(Am, dim = c(nrow(Am), ncol(Am), n_states), dimnames = list(vars, NULL, states))
+  Am = array(Am, dim = c(nrow(Am), ncol(Am), ifelse(is.infinite(n_states), 1, n_states)), dimnames = list(vars, NULL, states))
   
   #Initialize the filter for each state
   if(is.null(init)){
     B0 = matrix(0, nrow(Fm), 1)
-    B0 = array(B0, dim = c(nrow(B0), ncol(B0), n_states), dimnames = list(rownames(Fm), NULL, states))
+    B0 = array(B0, dim = c(nrow(B0), ncol(B0), ifelse(is.infinite(n_states), 1, n_states)), dimnames = list(rownames(Fm), NULL, states))
   }else{
     B0 = init[["B0"]]
   }
   if(is.null(init)){
     P0 = diag(nrow(Fm))
-    P0 = array(P0, dim = c(nrow(P0), ncol(P0), n_states), dimnames = list(rownames(B0), colnames(B0), states))
+    P0 = array(P0, dim = c(nrow(P0), ncol(P0), ifelse(is.infinite(n_states), 1, n_states)), dimnames = list(rownames(B0), colnames(B0), states))
   }else{
     P0 = init[["P0"]]
   }
