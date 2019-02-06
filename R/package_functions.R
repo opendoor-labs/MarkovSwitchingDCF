@@ -214,7 +214,7 @@ SSmodel_ms = function(par, yt, n_states, ms_var, panelID = NULL, timeID = NULL, 
   Dm = matrix(0, nrow = nrow(Fm), ncol = 1)
   Dm = array(Dm, dim = c(nrow(Dm), 1, n_states), dimnames = list(rownames(Fm), NULL, states))
   if(length(mu) > 0){
-    for(i in states){
+    for(i in names(mu)){
       Dm["ct0",, i] = mu[i]
     }
   }
