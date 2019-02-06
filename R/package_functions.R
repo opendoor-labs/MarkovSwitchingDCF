@@ -125,7 +125,7 @@ SSmodel_ms = function(par, yt, n_states, ms_var, panelID = NULL, timeID = NULL, 
   if(n_states == 1 | is.infinite(n_states)){
     states = "m"
   }else{
-    states = sort(substr(names(pr), 1, 1))
+    states = sort(unique(substr(names(pr), 1, 1)))
   }
   
   #Steady state probabilities
