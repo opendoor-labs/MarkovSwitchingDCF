@@ -240,6 +240,36 @@ SSmodel_ms = function(par, yt, n_states, ms_var, panelID = NULL, timeID = NULL, 
   return(list(B0 = B0, P0 = P0, At = Am, Dt = Dm, Ht = Hm, Ft = Fm, Qt = Qm, Rt = Rm, Tr_mat = Tr_mat))
 }
 
+#' @export
+data_trans = function(y, model = NULL, log.vars = NULL, ur.vars = NULL, vars = NULL,
+                      panelID = panelID, timeID = timeID){
+  if(is.null(model)){
+    model = list(log.vars = log.vars, ur.vars = ur.vars, vars = ars)  
+  }
+  
+  #Log the relevant variables
+  if(length(model$log.vars) > 0){
+    y[, c(model$log.vars) := lapply(.SD, log), .SDcols = c(model$log.vars)]
+  }
+  
+  #Difference the relevant variables
+  yy_d = copy(y)
+  if(length(model$ur.vars) > 0){
+    yy_d[, c(model$ur.vars) := lapply(.SD, function(x){
+      x - data.table::shift(x, type = "lag")
+    }), by = c(model$panelID), .SDcols = c(model$ur.vars)]
+  }
+  yy_d = yy_d[2:.N, ]
+  
+  #Standardize the data
+  yy_s = copy(yy_d)
+  yy_s[, c(model$vars) := lapply(.SD, function(x){
+    (x - mean(x, na.rm = T))/sd(x, na.rm = T)
+  }), by = c(model$panelID), .SDcols = c(model$vars)]
+  
+  return(list(yy_d = yy_d, yy_s = yy_s))
+}
+
 #' Markov switching model estimation by the Kim filter (Hamilton + Kalman filter)
 #
 #' Estimates a Markov switching mean state space model
@@ -772,6 +802,9 @@ ms_dcf_filter = function(y, model, plot = F){
       if(k == "smooth"){
         ans = kim_smoother(ans$B_tlss, ans$B_tts, ans$B_tt, ans$P_tlss, ans$P_tts, ans$Pr_tls, ans$Pr_tts, 
                            sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat)
+        if(any(is.na(ans$B_tt))){
+          break
+        }
       }
       
       #Build the rest of the DCF series
