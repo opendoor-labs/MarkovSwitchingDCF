@@ -396,6 +396,7 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
   arma::cube D_tt(Dt.n_rows, Dt.n_cols, B_tlss.n_cols, arma::fill::zeros);
   arma::cube F_tt(Ft.n_rows, Ft.n_cols, B_tlss.n_cols, arma::fill::zeros);
   arma::cube Q_tt(Qt.n_rows, Qt.n_cols, B_tlss.n_cols, arma::fill::zeros);
+  arma::mat temp;
   
   for(int i = t - 1; i >= 0; i--){
     int s = 0;
@@ -403,10 +404,10 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
       for(int stf = 0; stf < n_states; stf++){
         //Full information inference on unobserved component and its covariance matrix
         //B^{j,k}_{t|T} = B^{j}_{t|t} + P^{j}_{t|t} %*% t(Fm) %*% solve(P^{j,k}_{t+1|t}) %*% (B^{k}_{t+1|T} - B^{j,k}_{t+1|t})
-        B_tTss.slice(s) = B_tts.slice(st).col(i) + P_tts(st).slice(i) * Ft.slice(st).t() * Rginv(P_tlss(s).slice(i + 1)) * (B_tts.slice(st).col(i + 1) - B_tlss.slice(s).col(i + 1));
+        temp = P_tts(st).slice(i) * Ft.slice(st).t() * Rginv(P_tlss(s).slice(i + 1));
+        B_tTss.slice(s) = B_tts.slice(st).col(i) + temp * (B_tts.slice(st).col(i + 1) - B_tlss.slice(s).col(i + 1));
         
         // //P^{j,k} = P^{j}_{t|t} + P^{j}_{t|t} %*% t(Fm) %*% solve(P^{j,k}_{t+1|t}) %*% (P^{k}_{t+t|T} - P^{j,k}_{t+1|t}) %*% t(P^{j}_{t|t} %*% t(Fm) %*% solve(P^{j,k}_{t+1|t}))
-        arma::mat temp = P_tts(st).slice(i) * Ft.slice(st).t() * Rginv(P_tlss(s).slice(i + 1));
         P_tTss.slice(s) = P_tts(st).slice(i) + temp * (P_tts(st).slice(i + 1) - P_tlss(s).slice(i + 1)) * temp.t();
         
         //Full information inference on probabilities

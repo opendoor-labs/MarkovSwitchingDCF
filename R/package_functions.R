@@ -716,22 +716,12 @@ ms_dcf_filter = function(y, model, plot = F){
     init = kim_filter(sp$B0, sp$P0, sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
     init = kim_smoother(init$B_tlss, init$B_tts, init$B_tt, init$P_tlss, init$P_tts, init$Pr_tls, init$Pr_tts, 
                         sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat)
-    
     init = list(B0 = array(unlist(lapply(1:dim(init$B_tts)[3], function(x){matrix(init$B_tts[,1,x], ncol = 1)})),
                            dim = dim(sp$B0)),
                 P0 = array(unlist(lapply(1:length(init$P_tts), function(x){init$P_tts[[x]][,,1]})),
                            dim = dim(sp$P0)))
     sp2 = SSmodel_ms(model$coef, yy_s[eval(parse(text = model$panelID)) == i, ], model$n_states, model$ms_var, model$panelID, model$timeID, init = init)
     ans = kim_filter(sp2$B0, sp2$P0, sp2$At, sp2$Dt, sp2$Ft, sp2$Ht, sp2$Qt, sp2$Rt, sp2$Tr_mat, yti)
-    if(any(is.na(ans$B_tt))){
-      #If the kim filter provides a bad initial value, use the kalman filter as an approximation
-      init = kim_filter(sp$B0, sp$P0, sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
-      init = kalman_smoother(t(init$B_tl), t(init$B_tt), init$P_tl, init$P_tt, sp$Ft[,,1])
-      init = list(B0 = array(as.matrix(init$B_tt[, 1]), dim = dim(sp$B0)),
-                  P0 = array(init$P_tt[,, 1], dim = dim(sp$P0)))
-      sp2 = SSmodel_ms(model$coef, yy_s[eval(parse(text = model$panelID)) == i, ], model$n_states, model$ms_var, model$panelID, model$timeID, init = init)
-      ans = kim_filter(sp2$B0, sp2$P0, sp2$At, sp2$Dt, sp2$Ft, sp2$Ht, sp2$Qt, sp2$Rt, sp2$Tr_mat, yti)
-    }
     if(!is.null(na_locs)){
       fc = do.call("cbind", lapply(1:nrow(ans$B_tt), function(x){ans$H_tt[,,x] %*% ans$B_tt[x, ]}))
       rownames(fc) = rownames(yti)
