@@ -367,7 +367,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
   }
   if(weighted == true){
     for(int i = 0; i < w.n_rows; i++){
-      w.row(i) = 1/det(F_TL.slice(i)); 
+      w.row(i) = 1/sqrt(det(F_TL.slice(i))); 
     }
     w /= arma::as_scalar(sum(w));
   }
