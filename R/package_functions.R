@@ -303,6 +303,8 @@ data_trans = function(y, model = NULL, log.vars = NULL, ur.vars = NULL, vars = N
 #' @param ur.vars Character vector of unit root variables to be differenced
 #' @param n_states Number of states to include in the Markov switching model
 #' @param detect.lag.length Logical, detect lag length of the dynamic common factor to include in each observation equation using the cross correlation function up to a max of 3
+#' @param use_trans Logical, use parameter transformation functions instead of box constraints for parameter restrictions during estimation.
+#' @param weighted Logical, use weighted maximum likelihood. Weights are the rescaled inverse of the determinant of the forecast error covariance matrix for each observation.
 #' @return List of estimation values including coefficients, convergence code, the panel and time ids, the variables in the data, the variable that were logged, and the variables that were differenced
 #' @examples
 #' ms_dcf_estim(y = DT[, c("date", "y")])
@@ -349,6 +351,9 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   }
   if(!is.logical(use_trans)){
     stop("use_trans must be T, F.")
+  }
+  if(!is.logical(weighted)){
+    stop("weighted must be T, F.")
   }
   if(!n_states %in% c(1, 2, 3, Inf)){
     stop("n_states must be 1, 2, 3, or Inf.")
