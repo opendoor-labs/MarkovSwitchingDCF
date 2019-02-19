@@ -653,8 +653,8 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   }else{
     nseries = ncol(y[, colnames(y)[!colnames(y) %in% c(panelID, timeID)], with = F])
     ncol = 2 + 3*nseries + 
-      2*length(theta[grepl("p_", names(theta))]) + 
-      length(theta[grepl("mu_", names(theta))])
+      ifelse(is.finite(n_states), 2*length(theta[grepl("p_", names(theta))]), 0) + 
+      ifelse(is.finite(n_states), length(theta[grepl("mu_", names(theta))]), 0)
     ineqA = matrix(0, nrow = ncol, ncol = length(theta)) 
     ineqB = matrix(0, nrow = nrow(ineqA), ncol = 1)
     colnames(ineqA) = names(theta)
