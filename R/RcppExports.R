@@ -21,8 +21,8 @@ kalman_smoother <- function(B_tl, B_tt, P_tl, P_tt, Ft) {
     .Call(`_MarkovSwitchingDCF_kalman_smoother`, B_tl, B_tt, P_tl, P_tt, Ft)
 }
 
-kim_filter <- function(B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt) {
-    .Call(`_MarkovSwitchingDCF_kim_filter`, B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt)
+kim_filter <- function(B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt, weighted = FALSE) {
+    .Call(`_MarkovSwitchingDCF_kim_filter`, B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt, weighted)
 }
 
 kim_smoother <- function(B_tlss, B_tts, B_tt, P_tlss, P_tts, Pr_tls, Pr_tts, At, Dt, Ft, Ht, Qt, Rt, Tr_mat) {

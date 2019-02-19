@@ -310,7 +310,7 @@ data_trans = function(y, model = NULL, log.vars = NULL, ur.vars = NULL, vars = N
 #' @export
 ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0.01, detect.lag.length = F, 
                         log.vars = NULL, ur.vars = NULL, n_states = 2, ms_var = F,
-                        formulas = c("y ~ c + e.l1 + e.l2"), prior = NULL, use_trans = F,
+                        formulas = c("y ~ c + e.l1 + e.l2"), prior = NULL, use_trans = F, weighted = F,
                         optim_methods = c("BFGS", "CG", "NM"), maxit = 1000, maxtrials = 10, trace = F){
   
   dates = NULL
@@ -591,7 +591,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   }
   
   #Define the objective function
-  objective = function(par, n_states, ms_var, panelID, timeID, init = NULL, na_locs = NULL, use_trans){
+  objective = function(par, n_states, ms_var, panelID, timeID, init = NULL, na_locs = NULL, weighted, use_trans){
     if(use_trans == T){
       par = trans(par)
     }
@@ -599,7 +599,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     toret = foreach::foreach(i = unique(yy_s[, c(panelID), with = F][[1]]), .packages = c("data.table"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother")) %fun% {
       sp = SSmodel_ms(par, yy_s, n_states, ms_var, panelID, timeID, init = init[[i]])
       yti = t(yy_s[eval(parse(text = panelID)) == i, colnames(yy_s)[!colnames(yy_s) %in% c(panelID, timeID)], with = F])
-      ans = kim_filter(sp$B0, sp$P0, sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
+      ans = kim_filter(sp$B0, sp$P0, sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti, weighted)
       if(!is.null(na_locs)){
         # ans = kim_smoother(ans$B_tlss, ans$B_tts, ans$B_tt, ans$P_tlss, ans$P_tts, ans$Pr_tls, ans$Pr_tts,
         #                    sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, Tr_mat = sp$Tr_mat)
@@ -608,7 +608,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
         for(x in rownames(fc)){
           yti[x, na_locs[[i]][[x]]] = fc[x, na_locs[[i]][[x]]]
         }
-        ans = kim_filter(sp$B0, sp$P0, sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
+        ans = kim_filter(sp$B0, sp$P0, sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti, weighted)
         ret = list(loglik = ans$loglik, yy_s = data.table(t(yti)))
         ret$yy_s[, "temp" := i]
         colnames(ret$yy_s)[colnames(ret$yy_s) == "temp"] = panelID
@@ -631,8 +631,8 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   
   #Find the best starting values from among the uninformative and estimated priors
   if(is.null(prior)){
-    lnl1 = objective(theta, n_states, ms_var, panelID, timeID, init = NULL, na_locs = NULL, use_trans)
-    lnl2 = objective(theta2, n_states, ms_var, panelID, timeID, init = NULL, na_locs = NULL, use_trans)
+    lnl1 = objective(theta, n_states, ms_var, panelID, timeID, init = NULL, na_locs = NULL, weighted, use_trans)
+    lnl2 = objective(theta2, n_states, ms_var, panelID, timeID, init = NULL, na_locs = NULL, weighted, use_trans)
     if(lnl2 > lnl1){
       theta = theta2
       prior = "uninformative"
@@ -708,7 +708,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   sp = SSmodel_ms(theta, yy_s, n_states, ms_var, panelID, timeID)
   init = foreach::foreach(i = unique(y[, c(panelID), with = F][[1]]), .packages = c("data.table"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother")) %fun% {
     yti = t(yy_s[eval(parse(text = panelID)) == i, colnames(yy_s)[!colnames(yy_s) %in% c(panelID, timeID)], with = F])
-    ret = kim_filter(sp$B0, sp$P0, sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti)
+    ret = kim_filter(sp$B0, sp$P0, sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti, weighted)
     smooth = kim_smoother(ret$B_tlss, ret$B_tts, ret$B_tt, ret$P_tlss, ret$P_tts, ret$Pr_tls, ret$Pr_tts, 
                        sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, Tr_mat = sp$Tr_mat)
     
@@ -727,15 +727,15 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   }
   out = tryCatch(maxLik::maxLik(logLik = objective, start = theta, method = optim_methods[1],
                                 finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit), constraints = constraints,
-                                na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init, use_trans = use_trans),
+                                na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init, weighted = weighted, use_trans = use_trans),
                  error = function(err){
                    tryCatch(maxLik::maxLik(logLik = objective, start = theta, method = optim_methods[min(c(2, length(optim_methods)))],
                                            finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit), constraints = constraints,
-                                           na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init, use_trans = use_trans),
+                                           na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init, weighted = weighted, use_trans = use_trans),
                             error = function(err){
                               tryCatch(maxLik::maxLik(logLik = objective, start = theta, method = optim_methods[min(c(3, length(optim_methods)))],
                                                       finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit), constraints = constraints,
-                                                      na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init, use_trans = use_trans),
+                                                      na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init, weighted = weighted, use_trans = use_trans),
                                        error = function(err){NULL})
                             })
                  })
@@ -746,15 +746,15 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     while(out$code != 0 & trials < maxtrials){
       out2 = tryCatch(maxLik::maxLik(logLik = objective, start = coef(out), method = optim_methods[1],
                                      finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit), constraints = constraints,
-                                     na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init, use_trans = use_trans),
+                                     na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init, weighted = weighted, use_trans = use_trans),
                       error = function(err){
                         tryCatch(maxLik::maxLik(logLik = objective, start = coef(out), method = optim_methods[min(c(2, length(optim_methods)))],
                                                 finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit), constraints = constraints,
-                                                na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init, use_trans = use_trans),
+                                                na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init, weighted = weighted, use_trans = use_trans),
                                  error = function(err){
                                    tryCatch(maxLik::maxLik(logLik = objective, start = coef(out), method = optim_methods[min(c(3, length(optim_methods)))],
                                                            finalHessian = F, hess = NULL, control = list(printLevel = trace, iterlim = maxit), constraints = constraints,
-                                                           na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init, use_trans = use_trans),
+                                                           na_locs = na_locs, n_states = n_states, ms_var = ms_var, panelID = panelID, timeID = timeID, init = init, weighted = weighted, use_trans = use_trans),
                                             error = function(err){NULL})
                                  })
                       })

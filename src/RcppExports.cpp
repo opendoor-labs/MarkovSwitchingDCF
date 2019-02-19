@@ -74,8 +74,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // kim_filter
-Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht, arma::cube Qt, arma::cube Rt, arma::mat Tr_mat, arma::mat yt);
-RcppExport SEXP _MarkovSwitchingDCF_kim_filter(SEXP B0SEXP, SEXP P0SEXP, SEXP AtSEXP, SEXP DtSEXP, SEXP FtSEXP, SEXP HtSEXP, SEXP QtSEXP, SEXP RtSEXP, SEXP Tr_matSEXP, SEXP ytSEXP) {
+Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht, arma::cube Qt, arma::cube Rt, arma::mat Tr_mat, arma::mat yt, bool weighted);
+RcppExport SEXP _MarkovSwitchingDCF_kim_filter(SEXP B0SEXP, SEXP P0SEXP, SEXP AtSEXP, SEXP DtSEXP, SEXP FtSEXP, SEXP HtSEXP, SEXP QtSEXP, SEXP RtSEXP, SEXP Tr_matSEXP, SEXP ytSEXP, SEXP weightedSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -89,7 +89,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< arma::cube >::type Rt(RtSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type Tr_mat(Tr_matSEXP);
     Rcpp::traits::input_parameter< arma::mat >::type yt(ytSEXP);
-    rcpp_result_gen = Rcpp::wrap(kim_filter(B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt));
+    Rcpp::traits::input_parameter< bool >::type weighted(weightedSEXP);
+    rcpp_result_gen = Rcpp::wrap(kim_filter(B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt, weighted));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -167,7 +168,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_MarkovSwitchingDCF_ss_prob", (DL_FUNC) &_MarkovSwitchingDCF_ss_prob, 1},
     {"_MarkovSwitchingDCF_kalman_filter", (DL_FUNC) &_MarkovSwitchingDCF_kalman_filter, 9},
     {"_MarkovSwitchingDCF_kalman_smoother", (DL_FUNC) &_MarkovSwitchingDCF_kalman_smoother, 5},
-    {"_MarkovSwitchingDCF_kim_filter", (DL_FUNC) &_MarkovSwitchingDCF_kim_filter, 10},
+    {"_MarkovSwitchingDCF_kim_filter", (DL_FUNC) &_MarkovSwitchingDCF_kim_filter, 11},
     {"_MarkovSwitchingDCF_kim_smoother", (DL_FUNC) &_MarkovSwitchingDCF_kim_smoother, 14},
     {"_MarkovSwitchingDCF_rcpparma_hello_world", (DL_FUNC) &_MarkovSwitchingDCF_rcpparma_hello_world, 0},
     {"_MarkovSwitchingDCF_rcpparma_outerproduct", (DL_FUNC) &_MarkovSwitchingDCF_rcpparma_outerproduct, 1},

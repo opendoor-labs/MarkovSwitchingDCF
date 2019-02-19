@@ -136,12 +136,12 @@ Rcpp::List kalman_smoother(arma::mat B_tl, arma::mat B_tt, arma::cube P_tl, arma
 
 // [[Rcpp::export]]
 Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht,
-               arma::cube Qt, arma::cube Rt, arma::mat Tr_mat, arma::mat yt){
+               arma::cube Qt, arma::cube Rt, arma::mat Tr_mat, arma::mat yt, bool weighted = false){
   
   //Define variables
   int n_states = Tr_mat.n_cols;
   //double tol = 1E-06;
-  double lnl = 0.0;
+  //double lnl = 0.0;
   double Pr_val = 0.0;
   int s = 0;
   
@@ -152,6 +152,8 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
   arma::cube B_ttss(Ft.n_rows, yt.n_cols, n_states*n_states, arma::fill::zeros);
   arma::cube N_TLss(yt.n_rows, 1, n_states*n_states, arma::fill::zeros);
   arma::cube F_TLss(yt.n_rows, yt.n_rows, n_states*n_states, arma::fill::zeros);
+  arma::cube F_TLs(yt.n_rows, yt.n_rows, n_states, arma::fill::zeros);
+  arma::cube F_TL(yt.n_rows, yt.n_rows, yt.n_cols, arma::fill::zeros);
   arma::cube Ks(Ft.n_rows, yt.n_rows, n_states, arma::fill::zeros);
   arma::cube Kss(Ft.n_rows, yt.n_rows, n_states*n_states, arma::fill::zeros);
   arma::cube K(Ft.n_rows, yt.n_rows, yt.n_cols, arma::fill::zeros);
@@ -188,6 +190,8 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
   arma::cube D_tt(Dt.n_rows, Dt.n_cols, yt.n_cols, arma::fill::zeros);
   arma::cube F_tt(Ft.n_rows, Ft.n_cols, yt.n_cols, arma::fill::zeros);
   arma::cube Q_tt(Qt.n_rows, Qt.n_cols, yt.n_cols, arma::fill::zeros);
+  arma::mat lnl(yt.n_cols, 1, arma::fill::zeros);
+  arma::mat w(yt.n_cols, 1, arma::fill::ones);
   arma::mat temp;
   
   //Initialize the filter
@@ -302,6 +306,17 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
         B_tls.slice(s).col(i) /= arma::as_scalar(Pr.row(s));
       }
 
+      F_TLs.slice(s) = arma::zeros(F_TLs.slice(s).n_rows, F_TLs.slice(s).n_cols);
+      for(int j = 0; j < n_states; j++){
+        //K^{j} = (sum_{i}(PRO^{i,j}*K^{i,j}))/Pr[j]
+        F_TLs.slice(s) += arma::as_scalar(PROss.slice(s + j*n_states))*F_TLss.slice(s + j*n_states);
+      }
+      if(arma::as_scalar(Pr(s, 0)) <= 0){
+        F_TLs.slice(s) /= arma::as_scalar(arma::datum::inf);
+      }else{
+        F_TLs.slice(s) /= arma::as_scalar(Pr.row(s));
+      }
+      
       Ks.slice(s) = arma::zeros(Ks.slice(s).n_rows, Ks.slice(s).n_cols);
       for(int j = 0; j < n_states; j++){
         //K^{j} = (sum_{i}(PRO^{i,j}*K^{i,j}))/Pr[j]
@@ -332,6 +347,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
       }
 
       K.slice(i) += arma::as_scalar(Pr.row(s)) * Ks.slice(s);
+      F_TL.slice(i) += arma::as_scalar(Pr.row(s)) * F_TLs.slice(s);
       A_tt.slice(i) += arma::as_scalar(Pr.row(s)) * At.slice(s);
       H_tt.slice(i) += arma::as_scalar(Pr.row(s)) * Ht.slice(s);
       R_tt.slice(i) += arma::as_scalar(Pr.row(s)) * Rt.slice(s);
@@ -346,8 +362,14 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
       B_lls.slice(s) = B_tts.slice(s).col(i);
       P_lls.slice(s) = P_tts(s).slice(i);
     }
-
-    lnl = lnl - log(Pr_val);
+    
+    lnl.row(i) = -log(Pr_val);
+  }
+  if(weighted == true){
+    for(int i = 0; i < w.n_rows; i++){
+      w.row(i) = 1/det(F_TL.slice(i)); 
+    }
+    w /= arma::as_scalar(sum(w));
   }
   
   return Rcpp::List::create(Rcpp::Named("Pr_tls") = Pr_tls, 
@@ -369,7 +391,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
                             Rcpp::Named("D_tt") = D_tt,
                             Rcpp::Named("F_tt") = F_tt,
                             Rcpp::Named("Q_tt") = Q_tt,
-                            Rcpp::Named("loglik") = -lnl); 
+                            Rcpp::Named("loglik") = -(w.t() * lnl)); 
 }
 //library(Rcpp)
 //library(RcppArmadillo)
