@@ -369,7 +369,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
     for(int i = 0; i < w.n_rows; i++){
       w.row(i) = 1/sqrt(det(F_TL.slice(i))); 
     }
-    w /= arma::as_scalar(sum(w));
+    w = w * yt.n_cols / arma::as_scalar(sum(w));
   }
   
   return Rcpp::List::create(Rcpp::Named("Pr_tls") = Pr_tls, 
