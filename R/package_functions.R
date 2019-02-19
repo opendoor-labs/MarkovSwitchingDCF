@@ -669,16 +669,18 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
       ineqB[c(rn, rn + 1), ] = 1
       rn = rn + 3
     }
-    #0 < p < 1
-    for(i in 1:length(theta[grepl("p_", names(theta))])){
-      ineqA[c(rn, rn + 1), names(theta)[grepl("p_", names(theta))][i]] = c(1, -1)
-      ineqB[rn + 1, ] = 1
+    if(is.finite(n_states)){
+      #0 < p < 1
+      for(i in 1:length(theta[grepl("p_", names(theta))])){
+        ineqA[c(rn, rn + 1), names(theta)[grepl("p_", names(theta))][i]] = c(1, -1)
+        ineqB[rn + 1, ] = 1
+        rn = rn + 2
+      }
+      #mu_d < 0 & 0 < mu_u
+      ineqA[rn, "mu_d"] = -1
+      ineqA[rn + 1, "mu_u"] = 1
       rn = rn + 2
     }
-    #mu_d < 0 & 0 < mu_u
-    ineqA[rn, "mu_d"] = -1
-    ineqA[rn + 1, "mu_u"] = 1
-    rn = rn + 2
     if("sigmaM" %in% names(theta)){
       ineqA[rn, which(colnames(ineqA) == "sigmaM")] = 1
       rn = rn + 1
