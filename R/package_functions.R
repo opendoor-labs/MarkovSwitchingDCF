@@ -373,7 +373,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   vars = colnames(y)[!colnames(y) %in% c(panelID, timeID)]
   
   #Check for growth variables and log them
-  if(is.null(log.vars)){
+  if(ifelse(is.null(log.vars), T, ifelse(is.na(log.vars), F, F))){
     gr.test = colMeans(y[, lapply(.SD, function(x){
       d = x - shift(x, type = "lag", n = 1)
       return(t.test(d[!is.na(d)], mu = 0)$p.value)
@@ -385,7 +385,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   }
   
   #Unit root tests
-  if(is.null(ur.vars)){
+  if(ifelse(is.null(ur.vars), T, ifelse(is.na(ur.vars), F, F))){
     ur.vars = lapply(vars, function(x){
       ret = lapply(unique(y[, c(panelID), with = F][[1]]), function(z){
         tseries::adf.test(x = ts(y[eval(parse(text = panelID)) == z &!is.na(eval(parse(text = paste0("`", x, "`")))), c(x), with = F][[1]], freq = freq), alternative = "stationary")$p.value
