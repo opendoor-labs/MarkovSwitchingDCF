@@ -244,7 +244,7 @@ SSmodel_ms = function(par, yt, n_states, ms_var, panelID = NULL, timeID = NULL, 
 data_trans = function(y, model = NULL, log.vars = NULL, ur.vars = NULL, vars = NULL,
                       panelID = panelID, timeID = timeID){
   if(is.null(model)){
-    model = list(log.vars = log.vars, ur.vars = ur.vars, vars = ars)  
+    model = list(log.vars = model$log.vars, ur.vars = model$ur.vars, vars = model$vars)  
   }
   
   #Log the relevant variables
@@ -825,7 +825,7 @@ ms_dcf_filter = function(y, model, plot = F){
   
   #Difference the relevant variables
   yy_d = copy(y)
-  if(length(ur.vars) > 0){
+  if(length(model$ur.vars) > 0){
     if(any(model$ur.vars %in% colnames(yy_d))){
       yy_d[, c(model$ur.vars[model$ur.vars %in% colnames(yy_d)]) := lapply(.SD, function(x){
         x - data.table::shift(x, type = "lag")
