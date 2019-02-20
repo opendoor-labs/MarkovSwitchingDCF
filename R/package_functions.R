@@ -248,13 +248,13 @@ data_trans = function(y, model = NULL, log.vars = NULL, ur.vars = NULL, vars = N
   }
   
   #Log the relevant variables
-  if(length(model$log.vars) > 0){
+  if(ifelse(is.null(model$log.vars), T, ifelse(is.na(model$log.vars), F, F))){
     y[, c(model$log.vars) := lapply(.SD, log), .SDcols = c(model$log.vars)]
   }
   
   #Difference the relevant variables
   yy_d = copy(y)
-  if(length(model$ur.vars) > 0){
+  if(ifelse(is.null(model$ur.vars), T, ifelse(is.na(model$ur.vars), F, F))){
     yy_d[, c(model$ur.vars) := lapply(.SD, function(x){
       x - data.table::shift(x, type = "lag")
     }), by = c(model$panelID), .SDcols = c(model$ur.vars)]
@@ -806,13 +806,13 @@ ms_dcf_filter = function(y, model, plot = F){
   }
   
   #Log the relevant variables
-  if(length(model$log.vars) > 0){
+  if(ifelse(is.null(model$log.vars), T, ifelse(is.na(model$log.vars), F, F))){
     y[, c(model$log.vars) := lapply(.SD, log), .SDcols = c(model$log.vars)]
   }
   
   #Difference the relevant variables
   yy_d = copy(y)
-  if(length(model$ur.vars) > 0){
+  if(ifelse(is.null(model$ur.vars), T, ifelse(is.na(model$ur.vars), F, F))){
     yy_d[, c(model$ur.vars) := lapply(.SD, function(x){
       x - data.table::shift(x, type = "lag")
     }), by = c(model$panelID), .SDcols = c(model$ur.vars)]
