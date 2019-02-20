@@ -248,16 +248,21 @@ data_trans = function(y, model = NULL, log.vars = NULL, ur.vars = NULL, vars = N
   }
   
   #Log the relevant variables
-  if(ifelse(is.null(model$log.vars), T, ifelse(is.na(model$log.vars), F, F))){
-    y[, c(model$log.vars) := lapply(.SD, log), .SDcols = c(model$log.vars)]
+  if(length(model$log.vars) > 0){
+    if(any(model$log.vars %in% colnames(y))){
+      y[, c(model$log.vars[model$log.vars %in% colnames(y)]) := lapply(.SD, log), 
+        .SDcols = c(model$log.vars[model$log.vars %in% colnames(y)])]
+    }
   }
   
   #Difference the relevant variables
   yy_d = copy(y)
-  if(ifelse(is.null(model$ur.vars), T, ifelse(is.na(model$ur.vars), F, F))){
-    yy_d[, c(model$ur.vars) := lapply(.SD, function(x){
-      x - data.table::shift(x, type = "lag")
-    }), by = c(model$panelID), .SDcols = c(model$ur.vars)]
+  if(length(model$ur.vars) > 0){
+    if(any(model$ur.vars %in% colnames(yy_d))){
+      yy_d[, c(model$ur.vars[model$ur.vars %in% colnames(yy_d)]) := lapply(.SD, function(x){
+        x - data.table::shift(x, type = "lag")
+      }), by = c(model$panelID), .SDcols = c(model$ur.vars[model$ur.vars %in% colnames(yy_d)])]
+    }
   }
   yy_d = yy_d[2:.N, ]
   
@@ -380,7 +385,10 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     }), by = c(panelID), .SDcols = c(vars)][, c(vars), with = F])
     log.vars = names(gr.test)[which(gr.test <= level)]
     if(length(log.vars) > 0){
-      y[, c(log.vars) := lapply(.SD, log), .SDcols = c(log.vars)]
+      if(any(log.vars %in% colnames(y))){
+        y[, c(log.vars[log.vars %in% colnames(y)]) := lapply(.SD, log), 
+          .SDcols = c(log.vars[log.vars %in% colnames(y)])]
+      }
     }
   }
   
@@ -404,17 +412,19 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   #First difference the relevant series
   yy_d = copy(y)
   if(length(ur.vars) > 0){
-    yy_d[, c(ur.vars) := lapply(.SD, function(x){
-      x - data.table::shift(x, type = "lag")
-    }), by = c(panelID), .SDcols = c(ur.vars)]
+    if(any(ur.vars %in% colnames(yy_d))){
+      yy_d[, c(ur.vars[ur.vars %in% colnames(yy_d)]) := lapply(.SD, function(x){
+        x - data.table::shift(x, type = "lag")
+      }), by = c(panelID), .SDcols = c(ur.vars[ur.vars %in% colnames(yy_d)])]
+    }
   }
   yy_d = yy_d[2:.N, ]
   
   #Standardize the data
   yy_s = copy(yy_d)
-  yy_s[, c(vars) := lapply(.SD, function(x){
+  yy_s[, c(vars[vars %in% colnames(yy_s)]) := lapply(.SD, function(x){
     (x - mean(x, na.rm = T))/sd(x, na.rm = T)
-  }), by = c(panelID), .SDcols = vars]
+  }), by = c(panelID), .SDcols = c(vars[vars %in% colnames(yy_s)])]
   
   theta = NULL
   if(is.null(prior) | all(prior %in% c("estimate", "uninformative"))){
@@ -806,24 +816,29 @@ ms_dcf_filter = function(y, model, plot = F){
   }
   
   #Log the relevant variables
-  if(ifelse(is.null(model$log.vars), T, ifelse(is.na(model$log.vars), F, F))){
-    y[, c(model$log.vars) := lapply(.SD, log), .SDcols = c(model$log.vars)]
+  if(length(model$log.vars) > 0){
+    if(any(model$log.vars %in% colnames(y))){
+      y[, c(model$log.vars[model$log.vars %in% colnames(y)]) := lapply(.SD, log), 
+        .SDcols = c(model$log.vars[model$log.vars %in% colnames(y)])]
+    }
   }
   
   #Difference the relevant variables
   yy_d = copy(y)
-  if(ifelse(is.null(model$ur.vars), T, ifelse(is.na(model$ur.vars), F, F))){
-    yy_d[, c(model$ur.vars) := lapply(.SD, function(x){
-      x - data.table::shift(x, type = "lag")
-    }), by = c(model$panelID), .SDcols = c(model$ur.vars)]
+  if(length(ur.vars) > 0){
+    if(any(model$ur.vars %in% colnames(yy_d))){
+      yy_d[, c(model$ur.vars[model$ur.vars %in% colnames(yy_d)]) := lapply(.SD, function(x){
+        x - data.table::shift(x, type = "lag")
+      }), by = c(model$panelID), .SDcols = c(model$ur.vars[model$ur.vars %in% colnames(yy_d)])]
+    }
   }
   yy_d = yy_d[2:.N, ]
   
   #Standardize the data
   yy_s = copy(yy_d)
-  yy_s[, c(model$vars) := lapply(.SD, function(x){
+  yy_s[, c(model$vars[model$vars %in% colnames(yy_s)]) := lapply(.SD, function(x){
     (x - mean(x, na.rm = T))/sd(x, na.rm = T)
-  }), by = c(model$panelID), .SDcols = c(model$vars)]
+  }), by = c(model$panelID), .SDcols = c(model$vars[model$vars %in% colnames(yy_s)])]
   
   if(any(is.na(yy_s[, c(model$vars), with = F]))){
     na_locs = lapply(unique(yy_s[, c(model$panelID), with = F][[1]]), function(x){
@@ -933,6 +948,7 @@ ms_dcf_filter = function(y, model, plot = F){
         #First element of dCtt is C_22 - C_11 = dCtt_2
         Ctt[j] = ctt[j] + Ctt[j - 1] + c(d)
       }
+      ctt = ctt + c(d)
       Ctt = data.table::data.table(panelID = i, date = y[eval(parse(text = model$panelID)) == i, c(model$timeID), with = F][[1]], DCF = Ctt, d.DCF = ctt, Mu = mutt, Var = vartt)
       colnames(Ctt) = c(model$panelID, model$timeID, "DCF", "d.DCF", "Mu", "Var")
       
