@@ -870,8 +870,10 @@ ms_dcf_filter = function(y, model, plot = F){
     }
     
     #Get the steady state Kalman gain approximation
-    Ht = Reduce("+", lapply(1:dim(ans$H_tt)[3], function(x){ans$H_tt[,, x]}))/dim(ans$H_tt)[3]
-    Ft = Reduce("+", lapply(1:dim(ans$F_tt)[3], function(x){ans$F_tt[,, x]}))/dim(ans$F_tt)[3]
+    Ht = matrix(Reduce("+", lapply(1:dim(ans$H_tt)[3], function(x){ans$H_tt[,, x]}))/dim(ans$H_tt)[3],
+                nrow = dim(sp$Ht)[1], ncol = dim(sp$Ht)[2]) 
+    Ft = matrix(Reduce("+", lapply(1:dim(ans$F_tt)[3], function(x){ans$F_tt[,, x]}))/dim(ans$F_tt)[3],
+                nrow = dim(sp$Ft)[1], ncol = dim(sp$Ft)[2])
     rownames(Ht) = rownames(yti)
     colnames(Ht) = rownames(Ft) = rownames(sp2$Ft[,, 1])
     colnames(Ft) = colnames(sp2$Ft[,, 1])
@@ -880,7 +882,7 @@ ms_dcf_filter = function(y, model, plot = F){
     sds = unlist(yy_d[eval(parse(text = model$panelID)) == i, lapply(.SD, sd, na.rm = T), .SDcols = c(model$vars)])
     
     #Check fo convergence of Kt to steady state K
-    converge_test = data.table(d.k = diff(colMeans(ans$K[dcf_loc,,], na.rm = T)))
+    converge_test = data.table(d.k = diff(colMeans(matrix(ans$K[dcf_loc,,], nrow = 1, ncol = dim(ans$K)[3]), na.rm = T)))
     converge_test[, "window_rmsd" := sqrt(floor(0.2*.N)/(floor(0.2*.N) - 1) * frollmean(d.k^2, n = floor(0.2*.N), align = "right", algo = "exact"))]
     if(converge_test[.N, ]$window_rmsd < 1E-04){
       K = matrix(ans$K[,, dim(ans$K)[3]], nrow(ans$K), ncol(ans$K))
@@ -892,13 +894,14 @@ ms_dcf_filter = function(y, model, plot = F){
     }
   
     #Get the intercept terms
-    D = means - Ht[, grepl("ct", colnames(Ht))] %*% matrix(rep(d, ncol(Ht[, grepl("ct", colnames(Ht))])))
+    temp = matrix(Ht[, grepl("ct", colnames(Ht))], nrow = nrow(Ht))
+    D = means - temp %*% matrix(rep(d, ncol(temp)))
     
     #Initialize first element of the dynamic common factor
     Y1 = as.matrix(yti[, 1])
     nonna_idx = which(!is.na(Y1))
     initC = function(par){
-      return(sum((as.matrix(Y1[nonna_idx, ]) - as.matrix(D[nonna_idx, ]) - as.matrix(Ht[nonna_idx, grepl("ct", colnames(Ht))]) %*% matrix(par))^2))
+      return(sum((as.matrix(Y1[nonna_idx, ]) - as.matrix(D[nonna_idx, ]) - matrix(Ht[nonna_idx, grepl("ct", colnames(Ht))], nrow = nrow(temp)) %*% matrix(par))^2))
     }
     C10 = optim(par = rep(mean(Y1)/mean(model$coef[grepl("gamma", names(model$coef))]), length(colnames(Ft)[grepl("ct", colnames(Ft))])), 
                 fn = initC, method = "BFGS", control = list(trace = F))$par[1]
