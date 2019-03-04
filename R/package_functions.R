@@ -501,7 +501,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
             #max lags is the based on the number of paramters to be estimated per equation
             max.lag = max(c(floor(nrow(yy_s)/30 - (length(theta) + ifelse(ms_var == T, 1, 0) + ifelse(is.infinite(n_states), 1, 0) +
                                                      length(which(gregexpr("e\\.", formulas[v])[[1]] > 0)) + 1)), 1))
-            ccf = ccf(x = y[!is.na(c), ]$c, y = yy_s[, c(v), with = F][[1]], na.action = na.pass, lag.max = max.lag, plot = T)
+            ccf = ccf(x = y[!is.na(c), ]$c, y = yy_s[, c(v), with = F][[1]], na.action = na.pass, lag.max = max.lag, plot = F)
             ccf = data.table(lag = ccf$lag, value = ccf$acf, low = qnorm(level/2)/sqrt(nrow(y[complete.cases(y), ])/2), 
                              up = -qnorm(level/2)/sqrt(nrow(y[complete.cases(y), ])/2))
             ccf = ccf[lag < 0 & (value > up | value < low), ]
@@ -537,7 +537,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
       colnames(ts) = c("y", "c")
      
       #Create lags
-      for(m in 1:3){
+      for(m in 1:length(which(gregexpr("c\\.", formulas[z])[[1]] > 0))){
         ts[, paste0("c.l", m) := shift(c, type = "lag", n = m)]
       }
       ts = ts[complete.cases(ts), ]
@@ -586,6 +586,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     theta2[grepl("sig", names(theta2))] = 1
     theta2[grepl("mu_d", names(theta2))] = -1.5
     theta2[grepl("mu_u", names(theta2))] = 1.5
+    theta2[grepl("p_", names(theta2))] = 0.95
     if(is.infinite(n_states)){
       theta2["sigmaM"] = 1
     }
