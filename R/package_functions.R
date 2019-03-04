@@ -491,7 +491,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     }
     
     #Define the equations by series
-    if(length(formulas) < length(vars)){
+    if(length(formulas) < length(vars) | detect.lag.length == T){
       formulas = rep(formulas, length(vars))[1:length(vars)]
       names(formulas) = vars
       
@@ -499,14 +499,14 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
         c.lags = lapply(unique(yy_s[, c(panelID), with = F][[1]]), function(x){
           c.lag = unlist(lapply(vars, function(v){
             #max lags is the based on the number of paramters to be estimated per equation
-            max.lag = max(c(floor(nrow(yy_s)/30 - (length(theta) + ifelse(ms_var == T, 1, 0) + ifelse(is.infinite(n_states), 1, 0) +
+            max.lag = max(c(floor(nrow(yy_s)/30 - (length(theta[!grepl("p_", names(theta))]) + ifelse(ms_var == T, 1, 0) + ifelse(is.infinite(n_states), 1, 0) +
                                                      length(which(gregexpr("e\\.", formulas[v])[[1]] > 0)) + 1)), 1))
             ccf = ccf(x = y[!is.na(c), ]$c, y = yy_s[, c(v), with = F][[1]], na.action = na.pass, lag.max = max.lag, plot = F)
             ccf = data.table(lag = ccf$lag, value = ccf$acf, low = qnorm(level/2)/sqrt(nrow(y[complete.cases(y), ])/2), 
                              up = -qnorm(level/2)/sqrt(nrow(y[complete.cases(y), ])/2))
             ccf = ccf[lag < 0 & (value > up | value < low), ]
             if(nrow(ccf) == 0){
-              return(1)
+              return(0)
             }else{
               return(max(abs(ccf$lag))) 
             }
@@ -586,7 +586,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     theta2[grepl("sig", names(theta2))] = 1
     theta2[grepl("mu_d", names(theta2))] = -1.5
     theta2[grepl("mu_u", names(theta2))] = 1.5
-    theta2[grepl("p_", names(theta2))] = 0.95
+    theta2[grepl("p_uu|p_dd|p_mm", names(theta2))] = 0.95
     if(is.infinite(n_states)){
       theta2["sigmaM"] = 1
     }
@@ -656,7 +656,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   if(is.null(prior)){
     lnl1 = objective(theta, n_states, ms_var, panelID, timeID, init = NULL, na_locs = NULL, weighted, use_trans)
     lnl2 = objective(theta2, n_states, ms_var, panelID, timeID, init = NULL, na_locs = NULL, weighted, use_trans)
-    if(lnl2 > lnl1){
+    if(ifelse(is.na(lnl2), -Inf, lnl2) > ifelse(is.na(lnl1), -Inf, lnl1)){
       theta = theta2
       prior = "uninformative"
     }else{
