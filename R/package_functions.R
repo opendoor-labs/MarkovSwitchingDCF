@@ -499,11 +499,14 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
         c.lags = lapply(unique(yy_s[, c(panelID), with = F][[1]]), function(x){
           c.lag = unlist(lapply(vars, function(v){
             #max lags is the based on the number of paramters to be estimated per equation
-            max.lag = max(c(floor(nrow(yy_s)/30 - (length(theta[!grepl("p_", names(theta))]) + ifelse(ms_var == T, 1, 0) + ifelse(is.infinite(n_states), 1, 0) +
-                                                     length(which(gregexpr("e\\.", formulas[v])[[1]] > 0)) + 1)), 1))
+            max.lag = max(c(floor(nrow(yy_s)/30 - (length(which(gregexpr("e\\.", formulas[v])[[1]] > 0)) + 1)), 1))
             ccf = ccf(x = y[!is.na(c), ]$c, y = yy_s[, c(v), with = F][[1]], na.action = na.pass, lag.max = max.lag, plot = F)
-            ccf = data.table(lag = ccf$lag, value = ccf$acf, low = qnorm(level/2)/sqrt(nrow(y[complete.cases(y), ])/2), 
-                             up = -qnorm(level/2)/sqrt(nrow(y[complete.cases(y), ])/2))
+            
+            df = nrow(y[complete.cases(y), ]) - 2
+            critical.t = qt(level/2, df, lower.tail = F)
+            critical.r = sqrt((critical.t^2)/((critical.t^2) + df))
+            
+            ccf = data.table(lag = ccf$lag, value = ccf$acf, low = -abs(critical.r), up = abs(critical.r))
             ccf = ccf[lag < 0 & (value > up | value < low), ]
             if(nrow(ccf) == 0){
               return(0)
