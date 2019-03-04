@@ -431,7 +431,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     #Find the starting values
     y[, "C" := Matrix::rowMeans(y[, c(vars), with = F])]
     y[, "C" := imputeTS::na.kalman(C), by = c(panelID)]
-    y[, "C" := lapply(.SD, smooth, twiceit = T), by = c(panelID), .SDcols = "C"]
+    #y[, "C" := lapply(.SD, smooth, twiceit = T), by = c(panelID), .SDcols = "C"]
     y[, "c" := C - data.table::shift(C, type = "lag", n = 1), by = c(panelID)]
     y[, "c" := (c - mean(c, na.rm = T))/sd(c, na.rm = T), by = c(panelID)]
     
@@ -498,11 +498,18 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
       if(detect.lag.length == T){
         c.lags = lapply(unique(yy_s[, c(panelID), with = F][[1]]), function(x){
           c.lag = unlist(lapply(vars, function(v){
-            max.lag = max(c(signif(floor(freq/4),1), 1))
-            ccf = ccf(x = y[!is.na(c), ]$c, y = yy_s[, c(v), with = F][[1]], na.action = na.pass, lag.max = max.lag, plot = F)
-            ccf = data.table(lag = ccf$lag, value = ccf$acf, low = qnorm((1 - 0.95)/2)/sqrt(nrow(y[complete.cases(y), ])/2), up = -qnorm((1 - 0.95)/2)/sqrt(nrow(y[complete.cases(y), ])/2))
+            #max lags is the based on the number of paramters to be estimated per equation
+            max.lag = max(c(floor(nrow(yy_s)/30 - (length(theta) + ifelse(ms_var == T, 1, 0) + ifelse(is.infinite(n_states), 1, 0) +
+                                                     length(which(gregexpr("e\\.", formulas[v])[[1]] > 0)) + 1)), 1))
+            ccf = ccf(x = y[!is.na(c), ]$c, y = yy_s[, c(v), with = F][[1]], na.action = na.pass, lag.max = max.lag, plot = T)
+            ccf = data.table(lag = ccf$lag, value = ccf$acf, low = qnorm(level/2)/sqrt(nrow(y[complete.cases(y), ])/2), 
+                             up = -qnorm(level/2)/sqrt(nrow(y[complete.cases(y), ])/2))
             ccf = ccf[lag < 0 & (value > up | value < low), ]
-            return(max(abs(ccf$lag)))
+            if(nrow(ccf) == 0){
+              return(1)
+            }else{
+              return(max(abs(ccf$lag))) 
+            }
           }))
           names(c.lag) = vars
           return(c.lag)
@@ -512,7 +519,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
         
         for(v in vars){
           if(c.lags[v] > 0){
-            seq = signif(round(seq(0, max(c(signif(floor(freq/4),1), 1)), max(c(signif(floor(freq/4),1), 1))/3)), 1)
+            seq = seq(0, c.lags[v], 1)
             formulas[v] = gsub("c +", paste("c +", paste(paste0("c.l", seq[seq > 0]), collapse = " + "), ""), formulas[v])
           }
         }
