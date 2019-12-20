@@ -320,6 +320,8 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
                         formulas = c("y ~ c + e.l1 + e.l2"), prior = NULL, use_trans = F, weighted = F,
                         optim_methods = c("BFGS", "CG", "NM"), maxit = 1000, maxtrials = 10, trace = F){
   
+  y = copy(y)
+  
   dates = NULL
   if(is.null(freq)){
     #stop("Must provide freq as numeric (1 for annual, 4 for quarterly, 12 for monthly, 52 for weekly, 365 for daily).")
@@ -430,7 +432,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   if(is.null(prior) | all(prior %in% c("estimate", "uninformative"))){
     #Find the starting values
     y[, "C" := Matrix::rowMeans(y[, c(vars), with = F])]
-    y[, "C" := imputeTS::na.kalman(C), by = c(panelID)]
+    y[, "C" := imputeTS::na_kalman(C), by = c(panelID)]
     #y[, "C" := lapply(.SD, smooth, twiceit = T), by = c(panelID), .SDcols = "C"]
     y[, "c" := C - data.table::shift(C, type = "lag", n = 1), by = c(panelID)]
     y[, "c" := (c - mean(c, na.rm = T))/sd(c, na.rm = T), by = c(panelID)]
