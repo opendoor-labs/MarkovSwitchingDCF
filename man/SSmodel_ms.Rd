@@ -5,7 +5,8 @@
 \title{State space model for markov switching mean
 Creates a state space model in list form
 yt = At + Ht %*% Bt + e_t
-Bt = D_t + Ft %*% B_{t=1} + u_t}
+Bt = D_t + Ft %*% B_{t=1} + u_t
+}
 \usage{
 SSmodel_ms(par, yt, n_states, ms_var, panelID = NULL, timeID = NULL,
   init = NULL)
