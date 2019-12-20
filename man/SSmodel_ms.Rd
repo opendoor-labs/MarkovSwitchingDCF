@@ -4,8 +4,8 @@
 \alias{SSmodel_ms}
 \title{State space model for markov switching mean
 Creates a state space model in list form
-yt = At + Ht %*% Bt + e_t
-Bt = D_t + Ft %*% B_tl + u_t}
+yt = At + Ht * Bt + e_t
+Bt = D_t + Ft * B_tl + u_t}
 \usage{
 SSmodel_ms(par, yt, n_states, ms_var, panelID = NULL, timeID = NULL,
   init = NULL)
@@ -25,8 +25,8 @@ List of space space matrices
 \description{
 State space model for markov switching mean
 Creates a state space model in list form
-yt = At + Ht %*% Bt + e_t
-Bt = D_t + Ft %*% B_tl + u_t
+yt = At + Ht * Bt + e_t
+Bt = D_t + Ft * B_tl + u_t
 }
 \examples{
 SSmodel_ms(par, yt, panelID, timeID)

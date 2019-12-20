@@ -88,8 +88,8 @@ init_trans = function(cc){
 
 #' State space model for markov switching mean
 #' Creates a state space model in list form
-#' yt = At + Ht %*% Bt + e_t
-#' Bt = D_t + Ft %*% B_tl + u_t
+#' yt = At + Ht * Bt + e_t
+#' Bt = D_t + Ft * B_tl + u_t
 #'
 #' @param par Vector of named parameter values
 #' @param yt Multivariate time series of data values
