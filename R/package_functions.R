@@ -384,11 +384,11 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
       return(t.test(d[!is.na(d)], mu = 0)$p.value)
     }), by = c(panelID), .SDcols = c(vars)][, c(vars), with = F])
     log.vars = names(gr.test)[which(gr.test <= level)]
-    if(length(log.vars) > 0){
-      if(any(log.vars %in% colnames(y))){
-        y[, c(log.vars[log.vars %in% colnames(y)]) := lapply(.SD, log), 
-          .SDcols = c(log.vars[log.vars %in% colnames(y)])]
-      }
+  }
+  if(length(log.vars) > 0){
+    if(any(log.vars %in% colnames(y))){
+      y[, c(log.vars[log.vars %in% colnames(y)]) := lapply(.SD, log), 
+        .SDcols = c(log.vars[log.vars %in% colnames(y)])]
     }
   }
   
@@ -533,11 +533,11 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
       names(formulas) = vars
     }
     
-    #Prior for the MA coefficients (psi) as wella s the gamma and sigma values 
+    #Prior for the MA coefficients (psi) as well as the gamma and sigma values 
     theta = c(theta, unlist(lapply(vars, function(z){
       #Average the series
       ytemp = Matrix::rowMeans(yy_s[, c(z), with = F])
-      ts = data.table::data.table(y = yy_s[, c(z), with = F], c = y[!is.na(c), ]$c)
+      ts = data.table::data.table(y = yy_s[!is.na(eval(parse(text = z))), c(z), with = F], c = y[!is.na(c), ]$c)
       colnames(ts) = c("y", "c")
       
       #Create lags
