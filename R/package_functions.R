@@ -236,7 +236,7 @@ SSmodel_ms = function(par, yt, n_states, ms_var, panelID = NULL, timeID = NULL, 
   }else{
     P0 = init[["P0"]]
   }
-    
+  
   return(list(B0 = B0, P0 = P0, At = Am, Dt = Dm, Ht = Hm, Ft = Fm, Qt = Qm, Rt = Rm, Tr_mat = Tr_mat))
 }
 
@@ -403,7 +403,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     })
     names(ur.vars) = vars
     ur.vars = lapply(names(ur.vars), function(x){
-    mean(unlist(ur.vars[[x]]))
+      mean(unlist(ur.vars[[x]]))
     })
     names(ur.vars) = vars
     ur.vars = names(ur.vars)[ur.vars >= level]
@@ -479,8 +479,8 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     
     if(n_states > 1 & is.finite(n_states)){
       theta = c(theta, 
-              p_dd = 0.95, #sum(y$S_dd, na.rm = T)/sum(y$S_d, na.rm = T),
-              p_uu = 0.95)#sum(y$S_uu, na.rm = T)/sum(y$S_u, na.rm = T))
+                p_dd = 0.95, #sum(y$S_dd, na.rm = T)/sum(y$S_d, na.rm = T),
+                p_uu = 0.95)#sum(y$S_uu, na.rm = T)/sum(y$S_u, na.rm = T))
     }
     if(n_states == 3){
       theta = c(theta, 
@@ -523,6 +523,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
         for(v in vars){
           if(c.lags[v] > 0){
             seq = seq(0, c.lags[v], 1)
+            #seq = signif(round(seq(0, max(c(signif(floor(freq/4),1), 1)), max(c(signif(floor(freq/4),1), 1))/3)), 1)
             formulas[v] = gsub("c +", paste("c +", paste(paste0("c.l", seq[seq > 0]), collapse = " + "), ""), formulas[v])
           }
         }
@@ -538,7 +539,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
       ytemp = Matrix::rowMeans(yy_s[, c(z), with = F])
       ts = data.table::data.table(y = yy_s[, c(z), with = F], c = y[!is.na(c), ]$c)
       colnames(ts) = c("y", "c")
-     
+      
       #Create lags
       for(m in 1:length(which(gregexpr("c\\.", formulas[z])[[1]] > 0))){
         ts[, paste0("c.l", m) := shift(c, type = "lag", n = m)]
@@ -739,13 +740,13 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     yti = t(yy_s[eval(parse(text = panelID)) == i, colnames(yy_s)[!colnames(yy_s) %in% c(panelID, timeID)], with = F])
     ret = kim_filter(sp$B0, sp$P0, sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, sp$Tr_mat, yti, weighted)
     smooth = kim_smoother(ret$B_tlss, ret$B_tts, ret$B_tt, ret$P_tlss, ret$P_tts, ret$Pr_tls, ret$Pr_tts, 
-                       sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, Tr_mat = sp$Tr_mat)
+                          sp$At, sp$Dt, sp$Ft, sp$Ht, sp$Qt, sp$Rt, Tr_mat = sp$Tr_mat)
     
     ret = list(B0 = array(unlist(lapply(1:dim(ret$B_tts)[3], function(x){matrix(ret$B_tts[,1,x], ncol = 1)})),
                           dim = dim(sp$B0)),
                P0 = array(unlist(lapply(1:length(ret$P_tts), function(x){ret$P_tts[[x]][,,1]})),
                           dim = dim(sp$P0)))
-   return(ret)
+    return(ret)
   }
   names(init) = unique(yy_s[, c(panelID), with = F][[1]])
   #init = NULL
@@ -918,7 +919,7 @@ ms_dcf_filter = function(y, model, plot = F){
     }else{
       d = sum(Ht[, dcf_loc]/sum(Ht[, dcf_loc]) * means)
     }
-  
+    
     #Get the intercept terms
     temp = matrix(Ht[, grepl("ct", colnames(Ht))], nrow = nrow(Ht))
     D = means - temp %*% matrix(rep(d, ncol(temp)))
@@ -954,7 +955,7 @@ ms_dcf_filter = function(y, model, plot = F){
         mutt = c(0, t(ans$B_tt[, m_loc])*mean(sds)/sd(ans$B_tt[, m_loc]))
       }
       vartt = c(NA, ans$Q_tt[dcf_loc, dcf_loc, ])
-    
+      
       for(j in 2:length(Ctt)){
         #First element of dCtt is C_22 - C_11 = dCtt_2
         Ctt[j] = ctt[j] + Ctt[j - 1] + c(d)
@@ -1050,10 +1051,10 @@ ms_dcf_filter = function(y, model, plot = F){
   
   ret = list(filter = do.call("rbind", lapply(names(uc), function(x){
     uc[[x]]$filter
-    })), 
-    smooth = do.call("rbind", lapply(names(uc), function(x){
-      uc[[x]]$smooth
-    }))
+  })), 
+  smooth = do.call("rbind", lapply(names(uc), function(x){
+    uc[[x]]$smooth
+  }))
   )
   
   return(ret)
@@ -1064,5 +1065,6 @@ ms_dcf_filter = function(y, model, plot = F){
 #devtools::document()
 #devtools::build_vignettes()
 #devtools::install()
-#library(projectmap)
+#library(MarkovSwitchingDCF)
 #git config remote.origin.url git@github.com:opendoor-labs/MarkovSwitchingDCF.git
+# 205-50r17

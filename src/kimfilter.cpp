@@ -1,15 +1,8 @@
 #include <RcppArmadillo.h>
 #include <Rcpp.h>
-#include <cstdlib>
-#include <cstdio>
-#include <string>
-#include <iostream>
 
 // Correctly setup the build environment
 // [[Rcpp::depends(RcppArmadillo)]]
-
-// Add a flag to enable OpenMP at compile time
-// [[Rcpp::plugins(openmp)]]
 
 // Protect against compilers without OpenMP
 #ifdef _OPENMP
@@ -136,7 +129,7 @@ Rcpp::List kalman_smoother(arma::mat B_tl, arma::mat B_tt, arma::cube P_tl, arma
 
 // [[Rcpp::export]]
 Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht,
-               arma::cube Qt, arma::cube Rt, arma::mat Tr_mat, arma::mat yt, bool weighted = false){
+                      arma::cube Qt, arma::cube Rt, arma::mat Tr_mat, arma::mat yt, bool weighted = false){
   
   //Define variables
   int n_states = Tr_mat.n_cols;
@@ -198,11 +191,11 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
   arma::cube B_lls = B0;
   arma::cube P_lls = P0;
   arma::mat Pr = ss_prob(Tr_mat);
-    
+  
   //Hamiliton + Kalman filter routine
   for(int i = 0; i < yt.n_cols; i++){
     Pr_tls.row(i) = (Tr_mat * Pr).t();
-
+    
     // //Joint probabilities conditional on t-1
     if(Tr_mat.n_cols == 3){
       Pr_tl = Tr_mat % join_cols(join_cols(Pr.t(), Pr.t()), Pr.t()); //Pr[S_t=i,S_{t-1}=j|Y_{t-1}] = Pr[S_t=i|S_{t-1}=j,Y_{t-1}]*Pr[S_{t-1}=j|Y_{t-1}] 
@@ -219,11 +212,11 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
         //When S_{t-1}=j, S_{t}=i
         //B^{i,j}_{t|t-1} = D_j + Fm %*% B^{j}_{t|t-1}
         B_tlss.slice(s).col(i) = Dt.slice(st) + Ft.slice(st) * B_lls.slice(stl);
-
+        
         //Initial predictions of the unobserved componennt
         //P^{i,j}_{t|t-1} = P^{i,j}_{t|t-1} = Fm %*% P^{j}_{t-1|t-1} %*% t(Fm) + Qm
         P_tlss(s).slice(i) = Ft.slice(st) * P_lls.slice(stl) * Ft.slice(st).t() + Qt.slice(st);
-
+        
         //Forecast errors
         //N^{i,j}_{t|t-1} = yti[, j] - Hm %*% B^{i,j}_{t|t-1}
         N_TLss.slice(s) = yt.col(i) - At.slice(st) - Ht.slice(st) * B_tlss.slice(s).col(i);
@@ -233,34 +226,34 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
         if(!na_idx.is_empty()){
           N_TLss.slice(s).rows(na_idx) = arma::mat(na_idx.n_elem, 1, arma::fill::zeros);
         }
-
+        
         //Variance of forecast errors
         //F^{i,j}_{t|t-1} = Hm %*% P^{i,j}_{t|t-1} %*% t(Hm) + Rm
         F_TLss.slice(s) = Ht.slice(st) * P_tlss(s).slice(i) * Ht.slice(st).t() + Rt.slice(st);
-
+        
         //Kalman gain
         //K^{i,j} = P^{i,j}_{t|t-1} %*% t(Hm) %*% solve(F^{i,j}_{t|t-1})
         Kss.slice(s) = P_tlss(s).slice(i) * Ht.slice(st).t() * gen_inv(F_TLss.slice(s));
-
+        
         //Updated predictions of unobserved component
         //B^{i,j}_{t|t} = B^{i,j}_{t|t-1} + K^{i,j} %*% N^{i,j}_{t|t-1}
         //Kalman gain from missing values is 0, same as if the model's prediction
         B_ttss.slice(s).col(i) = B_tlss.slice(s).col(i) + Kss.slice(s) * N_TLss.slice(s);
-
+        
         //Updated predictions of the covariance matrix of unobserved component
         //P^{i,j}_{t|t} = P^{i,j}_{t|t-1} - K^{i,j} %*% Hm %*% P^{i,j}_{t|t-1}
         P_ttss(s).slice(i) = P_tlss(s).slice(i) - Kss.slice(s) * Ht.slice(st) * P_tlss(s).slice(i);
-
+        
         //f[y_t|S_t=j,S_{t-1}=i,Y_{t-1}]
         //PR_VL^{i,j} = v_prob(N^{i,j}_{t|t-1}, F^{i,j}_{t|t-1})*Pr_tl["d", "d"]
         //Ignore series with missing data
         // if(nonna_idx.is_empty()){ //If all series missing data
-          PR_VLss.slice(s) = ((1/sqrt(det(F_TLss.slice(s)))) * exp(-0.5*N_TLss.slice(s).t() * gen_inv(F_TLss.slice(s)) * N_TLss.slice(s))) * Pr_tl(st, stl);
+        PR_VLss.slice(s) = ((1/sqrt(det(F_TLss.slice(s)))) * exp(-0.5*N_TLss.slice(s).t() * gen_inv(F_TLss.slice(s)) * N_TLss.slice(s))) * Pr_tl(st, stl);
         // }else{
         //   PR_VLss.slice(s) = v_prob(N_TLss.slice(s).rows(nonna_idx),
         //                 F_TLss.slice(s)(nonna_idx, nonna_idx)) * Pr_tl(st, stl);
         // }
-
+        
         //Joint density conditional on t-1
         Pr_val = Pr_val + arma::as_scalar(PR_VLss.slice(s));
         s++;
@@ -277,7 +270,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
         PROss.slice(s) = PR_VLss.slice(s)/arma::as_scalar(arma::datum::inf);
       }
     }
-
+    
     for(int s = 0; s < n_states; s++){
       //Probabilities conditional on t: Pr[S_t=s|Yt]
       //Pr[j] = sum_{i}(PRO^{i,j})
@@ -287,7 +280,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
       }
     }
     Pr_tts.row(i) = Pr.t();
-
+    
     //Collapsing terms
     K.slice(i) = arma::zeros(K.slice(i).n_rows, K.slice(i).n_cols);
     for(int s = 0; s < n_states; s++){
@@ -305,7 +298,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
         B_tts.slice(s).col(i) /= arma::as_scalar(Pr.row(s));
         B_tls.slice(s).col(i) /= arma::as_scalar(Pr.row(s));
       }
-
+      
       F_TLs.slice(s) = arma::zeros(F_TLs.slice(s).n_rows, F_TLs.slice(s).n_cols);
       for(int j = 0; j < n_states; j++){
         //K^{j} = (sum_{i}(PRO^{i,j}*K^{i,j}))/Pr[j]
@@ -327,7 +320,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
       }else{
         Ks.slice(s) /= arma::as_scalar(Pr.row(s));
       }
-
+      
       P_tts(s).slice(i) = arma::zeros(P_tts(s).slice(i).n_rows, P_tts(s).slice(i).n_cols);
       P_tls(s).slice(i) = arma::zeros(P_tls(s).slice(i).n_rows, P_tls(s).slice(i).n_cols);
       for(int j = 0; j < n_states; j++){
@@ -345,7 +338,7 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
         P_tts(s).slice(i) /= arma::as_scalar(Pr.row(s));
         P_tls(s).slice(i) /= arma::as_scalar(Pr.row(s));
       }
-
+      
       K.slice(i) += arma::as_scalar(Pr.row(s)) * Ks.slice(s);
       F_TL.slice(i) += arma::as_scalar(Pr.row(s)) * F_TLs.slice(s);
       A_tt.slice(i) += arma::as_scalar(Pr.row(s)) * At.slice(s);
@@ -399,8 +392,8 @@ Rcpp::List kim_filter(arma::cube B0, arma::cube P0, arma::cube At, arma::cube Dt
 
 // [[Rcpp::export]]
 Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arma::field<arma::cube> P_tlss, arma::field<arma::cube> P_tts,
-                       arma::mat Pr_tls, arma::mat Pr_tts, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht,
-                       arma::cube Qt, arma::cube Rt, arma::mat Tr_mat){
+                        arma::mat Pr_tls, arma::mat Pr_tts, arma::cube At, arma::cube Dt, arma::cube Ft, arma::cube Ht,
+                        arma::cube Qt, arma::cube Rt, arma::mat Tr_mat){
   
   //Define variables
   int n_states = Tr_mat.n_cols;
@@ -452,7 +445,7 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
       for(int j = n_states - 1; j >= 0; j--){
         Pr_tts(i, s) += arma::as_scalar(Pr_tTss.slice((s + 1)*n_states - j - 1));
       }
-
+      
       //B^{j}_{t|T} = (sum_{i}(Pr[S_t|Y_T]^{i,j}*B^{j,k}_{t|T}))/Pr[j]
       B_tts.slice(s).col(i) = arma::zeros(B_tts.slice(s).col(i).n_rows, B_tts.slice(s).col(i).n_cols);
       for(int j = n_states - 1; j >= 0; j--){
@@ -463,7 +456,7 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
       }else{
         B_tts.slice(s).col(i) /= Pr_tts(i, s);
       }
-
+      
       //P^{j}_{t|T} = (sum_{i}(Pr[S_t|Y_T]^{i,j}*(B^{j}_{t|T} - B^{j,k}_{t|T}) %*% t(B^{j}_{t|T} - B^{j,k}_{t|T})))/Pr[j]
       P_tts(s).slice(i) = arma::zeros(P_tts(s).slice(i).n_rows, P_tts(s).slice(i).n_cols);
       for(int j = n_states - 1; j >= 0; j--){
@@ -475,7 +468,7 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
       }else{
         P_tts(s).slice(i) /= Pr_tts(i, s);
       }
-
+      
       B_tt.row(i) += (arma::as_scalar(Pr_tts(i, s)) * B_tts.slice(s).col(i)).t();
       A_tt.slice(i) += arma::as_scalar(Pr_tts(i, s)) * At.slice(s);
       H_tt.slice(i) += arma::as_scalar(Pr_tts(i, s)) * Ht.slice(s);
@@ -505,26 +498,26 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
 // B_LL = sp$a0
 // P_LL = sp$P0
 //
-  // for(j in 1:ncol(yt)){
-    //   ################## Kalman filter routine ##################
-    //   B_TL[, j] = sp$dt + sp$Tt %*% B_LL  #Initial estimate of unobserved values conditional on t-1
-    //   P_TL[[j]] = sp$Tt %*% P_LL %*% t(sp$Tt) + sp$HHt #Initial estimate of the covariance matrix conditional on t-1
-    //   N_TL = yt[, j] - sp$ct - sp$Zt %*% B_TL[, j] #Prediction error conditoinal on t-1
-    //   F_TL = sp$Zt %*% P_TL[[j]] %*% t(sp$Zt) + sp$GGt #Variance of the predictoin error conditional on t-1
-    //   K_T = P_TL[[j]] %*% t(sp$Zt) %*% ginv(F_TL) #Kalman gain conditional on t-1
-    //   B_TT[, j] = B_TL[, j] + K_T %*% N_TL #Final estimate of the unobserved values
-    //   P_TT[[j]] = P_TL[[j]] - K_T %*% sp$Zt %*% P_TL[[j]] #Final estiamte of the covariance matrix
-    //
-      //   #Reinitialize for the next iteration
-      //   B_LL = B_TT[, j]
-      //   P_LL = P_TT[[j]]
-      // }
+// for(j in 1:ncol(yt)){
+//   ################## Kalman filter routine ##################
+//   B_TL[, j] = sp$dt + sp$Tt %*% B_LL  #Initial estimate of unobserved values conditional on t-1
+//   P_TL[[j]] = sp$Tt %*% P_LL %*% t(sp$Tt) + sp$HHt #Initial estimate of the covariance matrix conditional on t-1
+//   N_TL = yt[, j] - sp$ct - sp$Zt %*% B_TL[, j] #Prediction error conditoinal on t-1
+//   F_TL = sp$Zt %*% P_TL[[j]] %*% t(sp$Zt) + sp$GGt #Variance of the predictoin error conditional on t-1
+//   K_T = P_TL[[j]] %*% t(sp$Zt) %*% ginv(F_TL) #Kalman gain conditional on t-1
+//   B_TT[, j] = B_TL[, j] + K_T %*% N_TL #Final estimate of the unobserved values
+//   P_TT[[j]] = P_TL[[j]] - K_T %*% sp$Zt %*% P_TL[[j]] #Final estiamte of the covariance matrix
 //
-  // #Kalman Smoother
-  // for(j in (ncol(yt) - 1):1){
-    //   B_TT[, j] = B_TT[, j] + P_TT[[j]] %*% t(sp$Tt) %*% ginv(P_TL[[j + 1]]) %*% (B_TT[, j + 1] - B_TL[, j + 1])
-    //   P_TT[[j]] = P_TT[[j]] + P_TT[[j]] %*% t(sp$Tt) %*% ginv(P_TL[[j + 1]]) %*% (P_TT[[j + 1]] - P_TL[[j + 1]]) %*% t(P_TT[[j]] %*% t(sp$Tt) %*% ginv(P_TL[[j + 1]]))
-    // }
+//   #Reinitialize for the next iteration
+//   B_LL = B_TT[, j]
+//   P_LL = P_TT[[j]]
+// }
+//
+// #Kalman Smoother
+// for(j in (ncol(yt) - 1):1){
+//   B_TT[, j] = B_TT[, j] + P_TT[[j]] %*% t(sp$Tt) %*% ginv(P_TL[[j + 1]]) %*% (B_TT[, j + 1] - B_TL[, j + 1])
+//   P_TT[[j]] = P_TT[[j]] + P_TT[[j]] %*% t(sp$Tt) %*% ginv(P_TL[[j + 1]]) %*% (P_TT[[j + 1]] - P_TL[[j + 1]]) %*% t(P_TT[[j]] %*% t(sp$Tt) %*% ginv(P_TL[[j + 1]]))
+// }
 
 //RcppArmadillo.package.skeleton(name = "kfdecomp", path = "/Users/alexhubbard/Dropbox (Opendoor)/R Codes/Packages")
 //compileAttributes(verbose=TRUE)
@@ -533,4 +526,3 @@ Rcpp::List kim_smoother(arma::cube B_tlss, arma::cube B_tts, arma::mat B_tt, arm
 //git config remote.origin.url git@github.com:opendoor-labs/hamiltonfilter.git
 
 
-  
