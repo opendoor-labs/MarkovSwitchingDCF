@@ -2,30 +2,30 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 Rginv <- function(m) {
-    .Call('_MarkovSwitchingDCF_Rginv', PACKAGE = 'MarkovSwitchingDCF', m)
+    .Call(`_MarkovSwitchingDCF_Rginv`, m)
 }
 
 gen_inv <- function(m) {
-    .Call('_MarkovSwitchingDCF_gen_inv', PACKAGE = 'MarkovSwitchingDCF', m)
+    .Call(`_MarkovSwitchingDCF_gen_inv`, m)
 }
 
 ss_prob <- function(mat) {
-    .Call('_MarkovSwitchingDCF_ss_prob', PACKAGE = 'MarkovSwitchingDCF', mat)
+    .Call(`_MarkovSwitchingDCF_ss_prob`, mat)
 }
 
 kalman_filter <- function(B0, P0, Dt, At, Ft, Ht, Qt, Rt, yt) {
-    .Call('_MarkovSwitchingDCF_kalman_filter', PACKAGE = 'MarkovSwitchingDCF', B0, P0, Dt, At, Ft, Ht, Qt, Rt, yt)
+    .Call(`_MarkovSwitchingDCF_kalman_filter`, B0, P0, Dt, At, Ft, Ht, Qt, Rt, yt)
 }
 
 kalman_smoother <- function(B_tl, B_tt, P_tl, P_tt, Ft) {
-    .Call('_MarkovSwitchingDCF_kalman_smoother', PACKAGE = 'MarkovSwitchingDCF', B_tl, B_tt, P_tl, P_tt, Ft)
+    .Call(`_MarkovSwitchingDCF_kalman_smoother`, B_tl, B_tt, P_tl, P_tt, Ft)
 }
 
 kim_filter <- function(B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt, weighted = FALSE) {
-    .Call('_MarkovSwitchingDCF_kim_filter', PACKAGE = 'MarkovSwitchingDCF', B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt, weighted)
+    .Call(`_MarkovSwitchingDCF_kim_filter`, B0, P0, At, Dt, Ft, Ht, Qt, Rt, Tr_mat, yt, weighted)
 }
 
 kim_smoother <- function(B_tlss, B_tts, B_tt, P_tlss, P_tts, Pr_tls, Pr_tts, At, Dt, Ft, Ht, Qt, Rt, Tr_mat) {
-    .Call('_MarkovSwitchingDCF_kim_smoother', PACKAGE = 'MarkovSwitchingDCF', B_tlss, B_tts, B_tt, P_tlss, P_tts, Pr_tls, Pr_tts, At, Dt, Ft, Ht, Qt, Rt, Tr_mat)
+    .Call(`_MarkovSwitchingDCF_kim_smoother`, B_tlss, B_tts, B_tt, P_tlss, P_tts, Pr_tls, Pr_tts, At, Dt, Ft, Ht, Qt, Rt, Tr_mat)
 }
 
