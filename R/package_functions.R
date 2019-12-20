@@ -1067,4 +1067,3 @@ ms_dcf_filter = function(y, model, plot = F){
 #devtools::install()
 #library(MarkovSwitchingDCF)
 #git config remote.origin.url git@github.com:opendoor-labs/MarkovSwitchingDCF.git
-# 205-50r17
