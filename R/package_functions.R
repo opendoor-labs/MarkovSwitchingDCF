@@ -316,7 +316,9 @@ data_trans = function(y, model = NULL, log.vars = NULL, ur.vars = NULL, vars = N
 #' @author Alex Hubbard (hubbard.alex@gmail.com)
 #' @export
 ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0.01, detect.lag.length = F, 
-                        log.vars = NULL, ur.vars = NULL, n_states = 2, ms_var = F,
+                        log.vars = NULL, ur.vars = NULL, 
+                        detect.log = F, detect.diff = F,
+                        n_states = 2, ms_var = F,
                         formulas = c("y ~ c + e.l1 + e.l2"), prior = NULL, use_trans = F, weighted = F,
                         optim_methods = c("BFGS", "CG", "NM"), maxit = 1000, maxtrials = 10, trace = F){
   
@@ -380,7 +382,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   vars = colnames(y)[!colnames(y) %in% c(panelID, timeID)]
   
   #Check for growth variables and log them
-  if(ifelse(is.null(log.vars), T, ifelse(is.na(log.vars), F, F))){
+  if(detect.log == T){
     gr.test = colMeans(y[, lapply(.SD, function(x){
       d = x - shift(x, type = "lag", n = 1)
       return(t.test(d[!is.na(d)], mu = 0)$p.value)
@@ -395,7 +397,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   }
   
   #Unit root tests
-  if(ifelse(is.null(ur.vars), T, ifelse(is.na(ur.vars), F, F))){
+  if(detect.diff == T){
     ur.vars = lapply(vars, function(x){
       ret = lapply(unique(y[, c(panelID), with = F][[1]]), function(z){
         tseries::adf.test(x = ts(y[eval(parse(text = panelID)) == z &!is.na(eval(parse(text = paste0("`", x, "`")))), c(x), with = F][[1]], freq = freq), alternative = "stationary")$p.value
