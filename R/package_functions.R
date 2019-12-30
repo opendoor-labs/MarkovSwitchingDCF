@@ -739,6 +739,9 @@ ms_dcf_filter = function(y, model, plot = F){
   #Get the data
   y = copy(y)
   data = data_trans(y = y, model = model)
+  yy_d = data$yy_d
+  yy_s = data$yy_s
+  rm(data)
   
   if(any(is.na(yy_s[, c(model$vars), with = F]))){
     na_locs = lapply(unique(yy_s[, c(model$panelID), with = F][[1]]), function(x){
@@ -788,8 +791,8 @@ ms_dcf_filter = function(y, model, plot = F){
     Ft = matrix(Reduce("+", lapply(1:dim(ans$F_tt)[3], function(x){ans$F_tt[,, x]}))/dim(ans$F_tt)[3],
                 nrow = dim(sp$Ft)[1], ncol = dim(sp$Ft)[2])
     rownames(Ht) = rownames(yti)
-    colnames(Ht) = rownames(Ft) = rownames(sp2$Ft[,, 1])
-    colnames(Ft) = colnames(sp2$Ft[,, 1])
+    colnames(Ht) = rownames(Ft) = rownames(sp$Ft[,, 1])
+    colnames(Ft) = colnames(sp$Ft[,, 1])
     
     dcf_loc = which(rownames(Ft) == "ct0")
     means = unlist(yy_s[eval(parse(text = model$panelID)) == i, lapply(.SD, mean, na.rm = T), .SDcols = c(model$vars)])
