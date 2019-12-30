@@ -183,54 +183,54 @@ data_trans = function(y, model = NULL, log.vars = NULL, diff.vars = NULL, freq =
     vars = colnames(y)[!colnames(y) %in% c(panelID, timeID)]
   }
   
-  #Check for growth variables and log them
-  if(detect.growth == T){
-    gr.test = colMeans(y[, lapply(.SD, function(x){
-      d = x - shift(x, type = "lag", n = diff.lag)
-      return(t.test(d[!is.na(d)], mu = 0)$p.value)
-    }), by = c(panelID), .SDcols = c(vars)][, c(vars), with = F])
-    log.vars = names(gr.test)[which(gr.test <= level)]
-  }
-  if(length(log.vars) > 0){
-    if(any(log.vars %in% colnames(y))){
-      y[, c(log.vars[log.vars %in% colnames(y)]) := lapply(.SD, log),
-        .SDcols = c(log.vars[log.vars %in% colnames(y)])]
+    #Check for growth variables and log them
+    if(detect.growth == T){
+      gr.test = colMeans(y[, lapply(.SD, function(x){
+        d = x - shift(x, type = "lag", n = diff.lag)
+        return(t.test(d[!is.na(d)], mu = 0)$p.value)
+      }), by = c(panelID), .SDcols = c(vars)][, c(vars), with = F])
+      log.vars = names(gr.test)[which(gr.test <= level)]
     }
-  }
-  
-  #Check for nonstationary variables to difference
-  if(detect.diff == T){
-    diff.vars = lapply(vars, function(x){
-      ret = lapply(unique(y[, c(panelID), with = F][[1]]), function(z){
-        tseries::adf.test(x = ts(y[eval(parse(text = panelID)) == z &!is.na(eval(parse(text = paste0("`", x, "`")))), c(x), with = F][[1]], freq = freq), alternative = "stationary")$p.value
+    if(length(log.vars) > 0){
+      if(any(log.vars %in% colnames(y))){
+        y[, c(log.vars[log.vars %in% colnames(y)]) := lapply(.SD, log),
+          .SDcols = c(log.vars[log.vars %in% colnames(y)])]
+      }
+    }
+
+    #Check for nonstationary variables to difference
+    if(detect.diff == T){
+      diff.vars = lapply(vars, function(x){
+        ret = lapply(unique(y[, c(panelID), with = F][[1]]), function(z){
+          tseries::adf.test(x = ts(y[eval(parse(text = panelID)) == z &!is.na(eval(parse(text = paste0("`", x, "`")))), c(x), with = F][[1]], freq = freq), alternative = "stationary")$p.value
+        })
+        names(ret) = unique(y[, c(panelID), with = F][[1]])
+        return(ret)
       })
-      names(ret) = unique(y[, c(panelID), with = F][[1]])
-      return(ret)
-    })
-    names(diff.vars) = vars
-    diff.vars = lapply(names(diff.vars), function(x){
-      mean(unlist(diff.vars[[x]]))
-    })
-    names(diff.vars) = vars
-    diff.vars = names(diff.vars)[diff.vars >= level]
-  }
-  
-  #Difference the relevant variables
-  yy_d = copy(y)
-  if(length(diff.vars) > 0){
-    if(any(diff.vars %in% colnames(yy_d))){
-      yy_d[, c(diff.vars[diff.vars %in% colnames(yy_d)]) := lapply(.SD, function(x){
-        x - data.table::shift(x, type = "lag", n = diff.lag)
-      }), by = c(panelID), .SDcols = c(diff.vars[diff.vars %in% colnames(yy_d)])]
+      names(diff.vars) = vars
+      diff.vars = lapply(names(diff.vars), function(x){
+        mean(unlist(diff.vars[[x]]))
+      })
+      names(diff.vars) = vars
+      diff.vars = names(diff.vars)[diff.vars >= level]
     }
-  }
-  yy_d = yy_d[(diff.lag + 1):.N, ]
-  
-  #Standardize the data
-  yy_s = copy(yy_d)
-  yy_s[, c(vars[vars %in% colnames(yy_s)]) := lapply(.SD, function(x){
-    (x - mean(x, na.rm = T))/sd(x, na.rm = T)
-  }), by = c(panelID), .SDcols = c(vars[vars %in% colnames(yy_s)])]
+
+    #Difference the relevant variables
+    yy_d = copy(y)
+    if(length(diff.vars) > 0){
+      if(any(diff.vars %in% colnames(yy_d))){
+        yy_d[, c(diff.vars[diff.vars %in% colnames(yy_d)]) := lapply(.SD, function(x){
+          x - data.table::shift(x, type = "lag", n = diff.lag)
+        }), by = c(panelID), .SDcols = c(diff.vars[diff.vars %in% colnames(yy_d)])]
+      }
+    }
+    yy_d = yy_d[(diff.lag + 1):.N, ]
+
+    #Standardize the data
+    yy_s = copy(yy_d)
+    yy_s[, c(vars[vars %in% colnames(yy_s)]) := lapply(.SD, function(x){
+      (x - mean(x, na.rm = T))/sd(x, na.rm = T)
+    }), by = c(panelID), .SDcols = c(vars[vars %in% colnames(yy_s)])]
   
   yy_d = yy_d[, c(panelID, timeID, vars), with = F]
   yy_s = yy_s[, c(panelID, timeID, vars), with = F]
