@@ -2,12 +2,7 @@
 
 export(SSmodel_ms)
 export(data_trans)
-export(init_trans)
 export(ms_dcf_estim)
 export(ms_dcf_filter)
-export(trans)
-
-useDynLib(MarkovSwitchingDCF, .registration=TRUE)
-importFrom(Rcpp, evalCpp)
-import(data.table)
-exportPattern("^[[:alpha:]]+")
+export(set_constraints)
+export(set_priors)

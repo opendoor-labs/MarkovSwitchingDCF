@@ -9,11 +9,11 @@ It will log all growth variables and difference all unit root variables.
 It also detects the frequency of the data if it is not provided.}
 \usage{
 ms_dcf_estim(y, freq = NULL, panelID = NULL, timeID = NULL,
-  level = 0.01, detect.lag.length = F, log.vars = NULL,
-  ur.vars = NULL, n_states = 2, ms_var = F,
-  formulas = c("y ~ c + e.l1 + e.l2"), prior = NULL, use_trans = F,
-  weighted = F, optim_methods = c("BFGS", "CG", "NM"), maxit = 1000,
-  maxtrials = 10, trace = F)
+  level = 0.01, log.vars = NULL, diff.vars = NULL,
+  detect.formula = F, detect.growth = F, detect.diff = F,
+  diff.lag = 1, n_states = 2, ms_var = F, prior = NULL,
+  formulas = c("y ~ c + e.l1 + e.l2"), weighted = F,
+  optim_methods = c("BFGS", "CG", "NM"), maxit = 1000, trace = F)
 }
 \arguments{
 \item{y}{Multivariate time series of data values. May also be a data frame containing a date column}
@@ -26,30 +26,32 @@ ms_dcf_estim(y, freq = NULL, panelID = NULL, timeID = NULL,
 
 \item{level}{Significance level of statistical tests (0.01, 0.05, 0.1)}
 
-\item{detect.lag.length}{Logical, detect lag length of the dynamic common factor to include in each observation equation using the cross correlation function up to a max of 3}
-
 \item{log.vars}{Character vector of variables to be logged}
 
-\item{ur.vars}{Character vector of unit root variables to be differenced}
+\item{diff.vars}{Character vector of unit root variables to be differenced}
+
+\item{detect.formula}{Logical, detect lag length of the dynamic common factor to include in each observation equation using the cross correlation function up to a max of 3}
+
+\item{detect.growth}{Logical, detect which variables to log}
+
+\item{detect.diff}{Logical, detect which variables to difference}
 
 \item{n_states}{Number of states to include in the Markov switching model}
 
-\item{formulas}{R formula describing the relationship between each data series, the unobserved dynamic common factor, and the erorr structure}
+\item{ms_var, }{Logical, T for Markow switching variance, default is F}
 
 \item{prior}{"estimate", "uninformative" or vector of named prior parameter guesses: DCF AR coefficients: phi1 and phi2 only; Error MA coefficients: psi_i1 to psi_i2 only for each series i; Error standard deviation: sigma_i only for each series i; Observation coefficient on DCF with first gamma (gamma_i, ..., gamma_n) only 1 index number, not i0 and any more gammas per equation: gamma_i1 to gamma_ik; Markov switching growth rate: mu_d and mu_u; Transition probabilities: p_dd, p_md (or p_mu), p_mm, p_md (or p_mu), p_uu, p_ud (or p_um)}
 
-\item{use_trans}{Logical, use parameter transformation functions instead of box constraints for parameter restrictions during estimation.}
+\item{formulas}{R formula describing the relationship between each data series, the unobserved dynamic common factor, and the erorr structure}
 
 \item{weighted}{Logical, use weighted maximum likelihood. Weights are the rescaled inverse of the determinant of the forecast error covariance matrix for each observation.}
 
 \item{optim_methods}{Vector of 1 to 3 optimization methods in order of preference ("NR", "BFGS", "CG", "BHHH", or "SANN")}
 
 \item{maxit}{Maximum number of iterations for the optimization}
-
-\item{maxtrials}{Maximum number of optimization trials to get convergence}
 }
 \value{
-List of estimation values including coefficients, convergence code, the panel and time ids, the variables in the data, the variable that were logged, and the variables that were differenced
+List of estimated values including coefficients, convergence code, the panel and time ids, the variables in the data, the variable that were logged, and the variables that were differenced
 }
 \description{
 Model priors (initial values) 

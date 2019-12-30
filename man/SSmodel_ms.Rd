@@ -7,13 +7,17 @@ Creates a state space model in list form
 yt = At + Ht * Bt + e_t
 Bt = D_t + Ft * B_tl + u_t}
 \usage{
-SSmodel_ms(par, yt, n_states, ms_var, panelID = NULL, timeID = NULL,
-  init = NULL)
+SSmodel_ms(par, yt, n_states, ms_var = F, panelID = NULL,
+  timeID = NULL)
 }
 \arguments{
 \item{par}{Vector of named parameter values}
 
 \item{yt}{Multivariate time series of data values}
+
+\item{n_states}{Number of states to include in the Markov switching model}
+
+\item{ms_var, }{Logical, T for Markow switching variance, default is F}
 
 \item{panelID}{Column name that identifies the cross section of the data}
 
@@ -29,7 +33,7 @@ yt = At + Ht * Bt + e_t
 Bt = D_t + Ft * B_tl + u_t
 }
 \examples{
-SSmodel_ms(par, yt, panelID, timeID)
+SSmodel_ms(par, yt, n_states, ms_var, panelID, timeID)
 }
 \author{
 Alex Hubbard (hubbard.alex@gmail.com)
