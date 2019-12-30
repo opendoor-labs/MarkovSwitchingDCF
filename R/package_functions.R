@@ -657,7 +657,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
                      formulas = formulas, detect.formula = detect.formula)
   
   #Set the constraints
-  constraints = set_constraints(yy_s = yy_s, theta = theta, panelID = panelID, timeID = timeID)
+  constraints = set_constraints(yy_s = yy_s, n_states = n_states, theta = theta, panelID = panelID, timeID = timeID)
   
   #Find location of NA values
   if(any(is.na(yy_s[, c(vars), with = F]))){
