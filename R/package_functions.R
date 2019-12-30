@@ -401,11 +401,13 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
       names(coeff)[length(coeff)] = paste0("sigma", idx)
       return(coeff)
     })))
-    if(prior == "uninformative"){
-      theta[names(theta) %in% paste0("gamma", 1:length(vars))] = 1
-      theta[!names(theta) %in% paste0("gamma", 1:length(vars)) & grepl("gamma", names(theta))] = 0
-      theta[grepl("psi", names(theta))] = 0
-      theta[grepl("sigma", names(theta))] = 1
+    if(!is.null(prior)){
+      if(prior == "uninformative"){
+        theta[names(theta) %in% paste0("gamma", 1:length(vars))] = 1
+        theta[!names(theta) %in% paste0("gamma", 1:length(vars)) & grepl("gamma", names(theta))] = 0
+        theta[grepl("psi", names(theta))] = 0
+        theta[grepl("sigma", names(theta))] = 1
+      }
     }
     if(ms_var == T & n_states > 1 & is.finite(n_states)){
       theta = c(theta, sd_ = c(1.5, 0.5))
