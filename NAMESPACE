@@ -7,3 +7,8 @@ export(ms_dcf_estim)
 export(ms_dcf_filter)
 export(set_constraints)
 export(set_priors)
+
+useDynLib(MarkovSwitchingDCF, .registration=TRUE)
+importFrom(Rcpp, evalCpp)
+import(data.table)
+exportPattern("^[[:alpha:]]+")
