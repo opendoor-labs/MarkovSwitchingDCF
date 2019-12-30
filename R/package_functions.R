@@ -281,7 +281,7 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
       c = yy_s[eval(parse(text = panelID)) == x, ]$c
       return(forecast::Arima(c[c < -0.44], order = c(2, 0, 0), include.mean = T))
     })
-    names(up) = names(down) = unique(y[, c(panelID), with = F][[1]])
+    names(up) = names(down) = unique(yy_s[, c(panelID), with = F][[1]])
     
     theta = colMeans(do.call("rbind", lapply(names(up), function(x){
       c = yy_s[eval(parse(text = panelID)) == x, ]$c
