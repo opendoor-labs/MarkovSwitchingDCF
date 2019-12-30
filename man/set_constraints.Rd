@@ -23,3 +23,9 @@ vector of initial coefficient values
 \description{
 Set the constraints for estimation
 }
+\examples{
+set_constraintsy(yy_s = yy_s, theta = theta, n_states = n_states, panelID = panelID, timeID = timeID)
+}
+\author{
+Alex Hubbard (hubbard.alex@gmail.com)
+}

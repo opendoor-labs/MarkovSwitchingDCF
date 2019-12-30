@@ -11,6 +11,15 @@ detect_frequency(y, timeID)
 
 \item{timeID}{Column name that identifies the date}
 }
+\value{
+Integer
+}
 \description{
 Detect data frequency
+}
+\examples{
+detect_frequency(y = y, timeID = timeID)
+}
+\author{
+Alex Hubbard (hubbard.alex@gmail.com)
 }

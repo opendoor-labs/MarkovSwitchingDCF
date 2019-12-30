@@ -4,8 +4,8 @@
 \alias{set_priors}
 \title{Set the priors for estimation}
 \usage{
-set_priors(yy_s, prior, panelID, timeID, n_states, ms_var, formulas,
-  detect.formula)
+set_priors(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F,
+  detect.formula = F, formulas = c("y ~ c + e.l1 + e.l2"))
 }
 \arguments{
 \item{yy_s}{Multivariate time series of standardized data values from data_trans}
@@ -20,13 +20,19 @@ set_priors(yy_s, prior, panelID, timeID, n_states, ms_var, formulas,
 
 \item{ms_var, }{Logical, T for Markow switching variance, default is F}
 
-\item{formulas}{R formula describing the relationship between each data series, the unobserved dynamic common factor, and the erorr structure}
-
 \item{detect.formula}{Logical, detect lag length of the dynamic common factor to include in each observation equation using the cross correlation function up to a max of 3}
+
+\item{formulas}{R formula describing the relationship between each data series, the unobserved dynamic common factor, and the erorr structure}
 }
 \value{
 vector of initial coefficient values
 }
 \description{
 Set the priors for estimation
+}
+\examples{
+set_priors(yy_s = yy_s, prior = prior, panelID = "panel", timeID = "date")
+}
+\author{
+Alex Hubbard (hubbard.alex@gmail.com)
 }

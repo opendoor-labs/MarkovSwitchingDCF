@@ -39,3 +39,9 @@ list containing differenced data (yy_d) and standardized data (yy_s)
 \description{
 Transform data for estimation
 }
+\examples{
+data_trans(y = y, panelID = "panel", timeID = "date")
+}
+\author{
+Alex Hubbard (hubbard.alex@gmail.com)
+}

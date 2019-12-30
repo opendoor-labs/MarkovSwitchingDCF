@@ -11,7 +11,7 @@
 #' @param n_states Number of states to include in the Markov switching model
 #' @return List of space space matrices
 #' @examples
-#' SSmodel_ms(par, yt, n_states, ms_var, panelID, timeID)
+#' SSmodel_ms(par = theta, yt = yt, n_states = 2, panelID = "panel", timeID = "date")
 #' @author Alex Hubbard (hubbard.alex@gmail.com)
 #' @export
 SSmodel_ms = function(par, yt, n_states, ms_var = F, panelID = NULL, timeID = NULL){
@@ -161,6 +161,9 @@ SSmodel_ms = function(par, yt, n_states, ms_var = F, panelID = NULL, timeID = NU
 #' @param diff.vars Character vector of unit root variables to be differenced
 #' @param diff.lag Integer, number of lags to use for differencing
 #' @return list containing differenced data (yy_d) and standardized data (yy_s)
+#' @examples
+#' data_trans(y = y, panelID = "panel", timeID = "date")
+#' @author Alex Hubbard (hubbard.alex@gmail.com)
 #' @export
 data_trans = function(y, model = NULL, log.vars = NULL, diff.vars = NULL, freq = NULL,
                       detect.diff = F, detect.growth = F, level = 0.01, diff.lag = 1,
@@ -249,8 +252,12 @@ data_trans = function(y, model = NULL, log.vars = NULL, diff.vars = NULL, freq =
 #' @param ms_var, Logical, T for Markow switching variance, default is F
 #' @param detect.formula Logical, detect lag length of the dynamic common factor to include in each observation equation using the cross correlation function up to a max of 3
 #' @return vector of initial coefficient values
+#' @examples
+#' set_priors(yy_s = yy_s, prior = prior, panelID = "panel", timeID = "date")
+#' @author Alex Hubbard (hubbard.alex@gmail.com)
 #' @export
-set_priors = function(yy_s, prior, panelID, timeID, n_states, ms_var, formulas, detect.formula){
+set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, detect.formula = F,
+                      formulas = c("y ~ c + e.l1 + e.l2")){
   yy_s = copy(yy_s)
   vars = colnames(yy_s)[!colnames(yy_s) %in% c(panelID, timeID)]
   
@@ -420,6 +427,9 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states, ms_var, formulas, 
 #' @param theta Named ector of initial coefficient values 
 #' @param n_states Number of states to include in the Markov switching model
 #' @return vector of initial coefficient values
+#' @examples
+#' set_constraintsy(yy_s = yy_s, theta = theta, n_states = n_states, panelID = panelID, timeID = timeID)
+#' @author Alex Hubbard (hubbard.alex@gmail.com)
 #' @export
 set_constraints = function(yy_s, theta, n_states, panelID, timeID){
   yy_s = copy(yy_s)
@@ -505,6 +515,11 @@ set_constraints = function(yy_s, theta, n_states, panelID, timeID){
 #' 
 #' @param y Multivariate time series of data values. May also be a data frame containing a date column
 #' @param timeID Column name that identifies the date
+#' @return Integer
+#' @examples
+#' detect_frequency(y = y, timeID = timeID)
+#' @author Alex Hubbard (hubbard.alex@gmail.com)
+#' @export
 detect_frequency = function(y, timeID){
   `.SD` = data.table::.SD
   if(any(unlist(y[, lapply(.SD, function(x){class(x) == "Date"})]))){
@@ -577,7 +592,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   if(is.null(freq)){
     freq = detect_frequency(y = y, timeID = timeID)
   }else{
-    if(!is.integer(freq)){
+    if(!is.numeric(freq)){
       stop("Must provide freq as numeric (1 for annual, 4 for quarterly, 12 for monthly, 52 for weekly, 365 for daily).")
     }else if(!freq %in% c(1, 4, 12, 52, 365)){
       stop("Must provide freq as numeric (1 for annual, 4 for quarterly, 12 for monthly, 52 for weekly, 365 for daily).")

@@ -2,6 +2,7 @@
 
 export(SSmodel_ms)
 export(data_trans)
+export(detect_frequency)
 export(ms_dcf_estim)
 export(ms_dcf_filter)
 export(set_constraints)

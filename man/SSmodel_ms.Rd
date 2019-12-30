@@ -33,7 +33,7 @@ yt = At + Ht * Bt + e_t
 Bt = D_t + Ft * B_tl + u_t
 }
 \examples{
-SSmodel_ms(par, yt, n_states, ms_var, panelID, timeID)
+SSmodel_ms(par = theta, yt = yt, n_states = 2, panelID = "panel", timeID = "date")
 }
 \author{
 Alex Hubbard (hubbard.alex@gmail.com)
