@@ -183,6 +183,21 @@ data_trans = function(y, model = NULL, log.vars = NULL, diff.vars = NULL, freq =
     vars = colnames(y)[!colnames(y) %in% c(panelID, timeID)]
   }
   
+  #Check for growth variables and log them
+  if(detect.growth == T){
+    gr.test = colMeans(y[, lapply(.SD, function(x){
+      d = x - shift(x, type = "lag", n = diff.lag)
+      return(t.test(d[!is.na(d)], mu = 0)$p.value)
+    }), by = c(panelID), .SDcols = c(vars)][, c(vars), with = F])
+    log.vars = names(gr.test)[which(gr.test <= level)]
+  }
+  if(length(log.vars) > 0){
+    if(any(log.vars %in% colnames(y))){
+      y[, c(log.vars[log.vars %in% colnames(y)]) := lapply(.SD, log),
+        .SDcols = c(log.vars[log.vars %in% colnames(y)])]
+    }
+  }
+  
   #Check for nonstationary variables to difference
   if(detect.diff == T){
     diff.vars = lapply(vars, function(x){
@@ -198,23 +213,6 @@ data_trans = function(y, model = NULL, log.vars = NULL, diff.vars = NULL, freq =
     })
     names(diff.vars) = vars
     diff.vars = names(diff.vars)[diff.vars >= level]
-  }
-  
-  #Unit root tests
-  if(detect.diff == T){
-    ur.vars = lapply(vars, function(x){
-      ret = lapply(unique(y[, c(panelID), with = F][[1]]), function(z){
-        tseries::adf.test(x = ts(y[eval(parse(text = panelID)) == z &!is.na(eval(parse(text = paste0("`", x, "`")))), c(x), with = F][[1]], freq = freq), alternative = "stationary")$p.value
-      })
-      names(ret) = unique(y[, c(panelID), with = F][[1]])
-      return(ret)
-    })
-    names(ur.vars) = vars
-    ur.vars = lapply(names(ur.vars), function(x){
-      mean(unlist(ur.vars[[x]]))
-    })
-    names(ur.vars) = vars
-    ur.vars = names(ur.vars)[ur.vars >= level]
   }
   
   #Difference the relevant variables
