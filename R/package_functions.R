@@ -250,6 +250,7 @@ data_trans = function(y, model = NULL, log.vars = NULL, diff.vars = NULL, freq =
 #' @param prior "estimate", "uninformative" or vector of named prior parameter guesses: DCF AR coefficients: phi1 and phi2 only; Error MA coefficients: psi_i1 to psi_i2 only for each series i; Error standard deviation: sigma_i only for each series i; Observation coefficient on DCF with first gamma (gamma_i, ..., gamma_n) only 1 index number, not i0 and any more gammas per equation: gamma_i1 to gamma_ik; Markov switching growth rate: mu_d and mu_u; Transition probabilities: p_dd, p_md (or p_mu), p_mm, p_md (or p_mu), p_uu, p_ud (or p_um)
 #' @param n_states Number of states to include in the Markov switching model
 #' @param ms_var, Logical, T for Markow switching variance, default is F
+#' @param level Significance level of statistical tests (0.01, 0.05, 0.1)
 #' @param detect.formula Logical, detect lag length of the dynamic common factor to include in each observation equation using the cross correlation function up to a max of 3
 #' @return vector of initial coefficient values
 #' @examples
@@ -257,7 +258,7 @@ data_trans = function(y, model = NULL, log.vars = NULL, diff.vars = NULL, freq =
 #' @author Alex Hubbard (hubbard.alex@gmail.com)
 #' @export
 set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, detect.formula = F,
-                      formulas = c("y ~ c + e.l1 + e.l2")){
+                      level = 0.01, formulas = c("y ~ c + e.l1 + e.l2")){
   yy_s = copy(yy_s)
   vars = colnames(yy_s)[!colnames(yy_s) %in% c(panelID, timeID)]
   
