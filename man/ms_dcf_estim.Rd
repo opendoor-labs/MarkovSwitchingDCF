@@ -36,6 +36,8 @@ ms_dcf_estim(y, freq = NULL, panelID = NULL, timeID = NULL,
 
 \item{detect.diff}{Logical, detect which variables to difference}
 
+\item{diff.lag}{Integer, number of lags to use for differencing}
+
 \item{n_states}{Number of states to include in the Markov switching model}
 
 \item{ms_var, }{Logical, T for Markow switching variance, default is F}

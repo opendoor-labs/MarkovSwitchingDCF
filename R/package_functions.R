@@ -159,10 +159,11 @@ SSmodel_ms = function(par, yt, n_states, ms_var = F, panelID = NULL, timeID = NU
 #' @param detect.diff Logical, detect which variables to difference
 #' @param log.vars Character vector of variables to be logged
 #' @param diff.vars Character vector of unit root variables to be differenced
+#' @param diff.lag Integer, number of lags to use for differencing
 #' @return list containing differenced data (yy_d) and standardized data (yy_s)
 #' @export
 data_trans = function(y, model = NULL, log.vars = NULL, diff.vars = NULL, freq = NULL,
-                      detect.diff = F, detect.growth = F, level = 0.01,
+                      detect.diff = F, detect.growth = F, level = 0.01, diff.lag = 1,
                       panelID = NULL, timeID = NULL){
   y = copy(y)
   if(!is.null(model)){
@@ -500,6 +501,29 @@ set_constraints = function(yy_s, theta, n_states, panelID, timeID){
   return(constraints)
 }
 
+#' Detect data frequency
+#' 
+#' @param y Multivariate time series of data values. May also be a data frame containing a date column
+#' @param timeID Column name that identifies the date
+detect_frequency = function(y, timeID){
+  `.SD` = data.table::.SD
+  if(any(unlist(y[, lapply(.SD, function(x){class(x) == "Date"})]))){
+    #Detect the frequency
+    timeID = names(which(unlist(y[, lapply(.SD, function(x){class(x) == "Date"})])))
+    if(length(timeID) > 1){
+      stop("Too many date columns. Include only 1 date column or set the frequency manually.")
+    }
+    datediffs = unique(diff(y[, timeID, with = F][[1]]))
+    freq = datediffs[which.max(tabulate(match(diff(y[, timeID, with = F][[1]]), datediffs)))]
+    freq = c(365, 52, 12, 4, 1)[which.min(abs(freq - c(1, 7, 30, 90, 365)))]
+    dates = y[, timeID, with = F][[1]]
+    rm(datediffs)
+    return(freq)
+  }else{
+    stop("No date column detected. Include a date column or set the frequency.")
+  }
+}
+
 #' Markov switching model estimation by the Kim filter (Hamilton + Kalman filter)
 #
 #' Estimates a Markov switching mean state space model
@@ -529,6 +553,7 @@ set_constraints = function(yy_s, theta, n_states, panelID, timeID){
 #' @param prior "estimate", "uninformative" or vector of named prior parameter guesses: DCF AR coefficients: phi1 and phi2 only; Error MA coefficients: psi_i1 to psi_i2 only for each series i; Error standard deviation: sigma_i only for each series i; Observation coefficient on DCF with first gamma (gamma_i, ..., gamma_n) only 1 index number, not i0 and any more gammas per equation: gamma_i1 to gamma_ik; Markov switching growth rate: mu_d and mu_u; Transition probabilities: p_dd, p_md (or p_mu), p_mm, p_md (or p_mu), p_uu, p_ud (or p_um)
 #' @param log.vars Character vector of variables to be logged
 #' @param diff.vars Character vector of unit root variables to be differenced
+#' @param diff.lag Integer, number of lags to use for differencing
 #' @param n_states Number of states to include in the Markov switching model
 #' @param ms_var, Logical, T for Markow switching variance, default is F
 #' @param detect.formula Logical, detect lag length of the dynamic common factor to include in each observation equation using the cross correlation function up to a max of 3
@@ -548,27 +573,11 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
                         optim_methods = c("BFGS", "CG", "NM"), maxit = 1000, trace = F){  
 
   y = copy(y)
-  dates = NULL
+  y = data.table::as.data.table(y)
   if(is.null(freq)){
-    #stop("Must provide freq as numeric (1 for annual, 4 for quarterly, 12 for monthly, 52 for weekly, 365 for daily).")
-    y = data.table::as.data.table(y)
-    `.SD` = data.table::.SD
-    if(any(unlist(y[, lapply(.SD, function(x){class(x) == "Date"})]))){
-      #Detect the frequency
-      timeID = names(which(unlist(y[, lapply(.SD, function(x){class(x) == "Date"})])))
-      if(length(timeID) > 1){
-        stop("Too many date columns. Include only 1 date column or set the frequency manually.")
-      }
-      datediffs = unique(diff(y[, timeID, with = F][[1]]))
-      freq = datediffs[which.max(tabulate(match(diff(y[, timeID, with = F][[1]]), datediffs)))]
-      freq = c(365, 52, 12, 4, 1)[which.min(abs(freq - c(1, 7, 30, 90, 365)))]
-      dates = y[, timeID, with = F][[1]]
-      rm(datediffs)
-    }else{
-      stop("No date column detected. Include a date column or set the frequency.")
-    }
+    freq = detect_frequency(y = y, timeID = timeID)
   }else{
-    if(!is.numeric(freq)){
+    if(!is.integer(freq)){
       stop("Must provide freq as numeric (1 for annual, 4 for quarterly, 12 for monthly, 52 for weekly, 365 for daily).")
     }else if(!freq %in% c(1, 4, 12, 52, 365)){
       stop("Must provide freq as numeric (1 for annual, 4 for quarterly, 12 for monthly, 52 for weekly, 365 for daily).")
@@ -617,7 +626,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   vars = colnames(y)[!colnames(y) %in% c(panelID, timeID)]
   
   #Transform the data
-  data = data_trans(y = y, log.vars = log.vars, diff.vars = diff.vars, freq = freq, 
+  data = data_trans(y = y, log.vars = log.vars, diff.vars = diff.vars, freq = freq, diff.lag = diff.lag,
                     detect.diff = detect.diff, detect.growth = detect.growth, level = level,
                     panelID = panelID, timeID = timeID)
   yy_d = data$yy_d

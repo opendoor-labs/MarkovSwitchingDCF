@@ -6,7 +6,7 @@
 \usage{
 data_trans(y, model = NULL, log.vars = NULL, diff.vars = NULL,
   freq = NULL, detect.diff = F, detect.growth = F, level = 0.01,
-  panelID = NULL, timeID = NULL)
+  diff.lag = 1, panelID = NULL, timeID = NULL)
 }
 \arguments{
 \item{y}{Multivariate time series of data values. May also be a data frame containing a date column}
@@ -24,6 +24,8 @@ data_trans(y, model = NULL, log.vars = NULL, diff.vars = NULL,
 \item{detect.growth}{Logical, detect which variables to log}
 
 \item{level}{Significance level of statistical tests (0.01, 0.05, 0.1)}
+
+\item{diff.lag}{Integer, number of lags to use for differencing}
 
 \item{panelID}{Column name that identifies the cross section of the data}
 
