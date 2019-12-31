@@ -460,19 +460,23 @@ set_constraints = function(yy_s, theta, n_states, panelID, timeID){
     #0 < p < 1
     for(i in 1:length(theta[grepl("p_", names(theta))])){
       ineqA[c(rn, rn + 1), names(theta)[grepl("p_", names(theta))][i]] = c(1, -1)
-      ineqB[rn + 1, ] = 1
+      ineqB[rn, ] = -0.01 #Prevent any p from reaching 0
+      ineqB[rn + 1, ] = 1 #Prevent any p from reaching 1
       rn = rn + 2
     }
     #0 < sum(p) < 1
     ineqA[c(rn, rn + 1), colnames(ineqA)[grepl("p_d", colnames(ineqA))]] = c(1, -1)
-    ineqB[c(rn + 1), ] = 1
+    ineqB[rn, ] = -0.01 #Prevent the sum of any two p's from reaching 0
+    ineqB[rn + 1, ] = 0.99 #Prevent the sum of any two p's from reaching 1
     rn = rn + 2
     ineqA[c(rn, rn + 1), colnames(ineqA)[grepl("p_u", colnames(ineqA))]] = c(1, -1)
-    ineqB[c(rn + 1), ] = 1
+    ineqB[rn, ] = -0.01 #Prevent the sum of any two p's from reaching 0
+    ineqB[rn + 1, ] = 0.99 #Prevent the sum of any two p's from reaching 1
     rn = rn + 2
     if(n_states == 3){
       ineqA[c(rn, rn + 1), colnames(ineqA)[grepl("p_m", colnames(ineqA))]] = c(1, -1)
-      ineqB[c(rn + 1), ] = 1
+      ineqB[rn, ] = -0.01 #Prevent the sum of any two p's from reaching 0
+      ineqB[rn + 1, ] = 0.99 #Prevent the sum of any two p's from reaching 1
       rn = rn + 2
     }
     
@@ -864,15 +868,15 @@ ms_dcf_filter = function(y, model, plot = F){
         toplot1 = melt(y[eval(parse(text = model$panelID)) == i, ], id.vars = c(model$panelID, model$timeID))
         toplot1[, "value2" := (value - min(value, na.rm = T))/(diff(range(value, na.rm = T))), by = c("variable")]
         g1 = ggplot2::ggplot(toplot1) + 
-          ggplot2::ggtitle(paste(ifelse(i == "panel" & model$panelID == "panelid", "", i), "Data Series"), subtitle = "Levels") + 
-          ggplot2::scale_y_continuous(name = "Levels (Rescaled)") + 
+          ggplot2::ggtitle("Data Series", subtitle = "Levels") + 
+          ggplot2::scale_y_continuous(name = "Value (Rescaled)") + 
           ggplot2::scale_x_date(name = "") + 
           ggplot2::geom_line(ggplot2::aes(x = eval(parse(text = model$timeID)), y = value2, group = variable, color = variable)) + 
           ggplot2::theme_minimal() + ggplot2::theme(legend.position = "bottom") + ggplot2::guides(color = ggplot2::guide_legend(title = NULL))
         
         toplot2 = melt(yy_s[eval(parse(text = model$panelID)) == i, ], id.vars = c(model$panelID, model$timeID))
         g2 = ggplot2::ggplot(toplot2) + 
-          ggplot2::ggtitle(paste(ifelse(i == "panel" & model$panelID == "panelid", "", i), "Data Series"), subtitle = "Differenced & Standardized") + 
+          ggplot2::ggtitle("Data Series", subtitle = "Differenced & Standardized") + 
           ggplot2::scale_y_continuous(name = "Value") + 
           ggplot2::scale_x_date(name = "") + 
           ggplot2::geom_hline(yintercept = 0, color = "black") + 
@@ -884,7 +888,7 @@ ms_dcf_filter = function(y, model, plot = F){
         p_range1 = range(toplot3[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_", colnames(uc[[i]][[j]]))], ]$value, na.rm = T)
         toplot3[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_", colnames(uc[[i]][[j]]))], "value" := (value - p_range1[1])/diff(p_range1) * diff(d_range1) + d_range1[1], by = "variable"]
         g3 = ggplot2::ggplot() +  
-          ggplot2::ggtitle(paste(ifelse(i == "panel" & model$panelID == "panelid", "", i), "Dynamic Common Factor"), subtitle = "Levels") + 
+          ggplot2::ggtitle("Dynamic Common Factor", subtitle = "Levels") + 
           ggplot2::scale_x_date(name = "") +
           ggplot2::geom_hline(yintercept = 0, color = "grey") + 
           ggplot2::geom_line(data = toplot3[variable == "DCF", ], 
@@ -908,7 +912,7 @@ ms_dcf_filter = function(y, model, plot = F){
         p_range2 = range(toplot4[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_", colnames(uc[[i]][[j]]))], ]$value, na.rm = T)
         toplot4[variable %in% colnames(uc[[i]][[j]])[grepl("Pr_", colnames(uc[[i]][[j]]))], "value" := (value - p_range2[1])/diff(p_range2) * diff(d_range2) + d_range2[1], by = "variable"]
         g4 = ggplot2::ggplot() +  
-          ggplot2::ggtitle(paste(ifelse(i == "panel" & model$panelID == "panelid", "", i), "Dynamic Common Factor"), subtitle = "Differenced & Standardized") + 
+          ggplot2::ggtitle("Dynamic Common Factor", subtitle = "Differenced & Standardized") + 
           ggplot2::scale_x_date(name = "") +
           ggplot2::geom_hline(yintercept = 0, color = "grey") + 
           ggplot2::geom_line(data = toplot4[variable %in% c("d.DCF"), ], 
@@ -927,7 +931,7 @@ ms_dcf_filter = function(y, model, plot = F){
         }
         
         gridExtra::grid.arrange(g1, g2, g3, g4, layout_matrix = matrix(c(1, 3, 2, 4), nrow = 2),
-                                top = grid::textGrob(j, gp = grid::gpar(fontsize = 20, font = 3)))
+                                top = grid::textGrob(paste(ifelse(i == "panel" & model$panelID == "panelid", "", i), j), gp = grid::gpar(fontsize = 20, font = 3)))
         Sys.sleep(0.1)
       }
     }
