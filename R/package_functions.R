@@ -461,7 +461,7 @@ set_constraints = function(yy_s, theta, n_states, panelID, timeID){
     for(i in 1:length(theta[grepl("p_", names(theta))])){
       ineqA[c(rn, rn + 1), names(theta)[grepl("p_", names(theta))][i]] = c(1, -1)
       ineqB[rn, ] = -0.01 #Prevent any p from reaching 0
-      ineqB[rn + 1, ] = 1 #Prevent any p from reaching 1
+      ineqB[rn + 1, ] = 0.99 #Prevent any p from reaching 1
       rn = rn + 2
     }
     #0 < sum(p) < 1
