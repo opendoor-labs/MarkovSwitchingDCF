@@ -843,9 +843,9 @@ ms_dcf_filter = function(y, model, plot = F){
       }
       vartt = c(NA, ans$Q_tt[dcf_loc, dcf_loc, ])
       
-      for(j in 2:length(Ctt)){
+      for(j in (diff.lag + 1):length(Ctt)){
         #First element of dCtt is C_22 - C_11 = dCtt_2
-        Ctt[j] = ctt[j] + Ctt[j - 1] + c(d)
+        Ctt[j] = ctt[j] + Ctt[j - diff.lag] + c(d)
       }
       ctt = ctt + c(d)
       Ctt = data.table::data.table(panelID = i, date = y[(model$diff.lag):.N, ][eval(parse(text = model$panelID)) == i, c(model$timeID), with = F][[1]], DCF = Ctt, d.DCF = ctt, Mu = mutt, Var = vartt)
