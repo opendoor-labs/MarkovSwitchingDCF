@@ -269,16 +269,16 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
     #Prior for the AR coefficients (phi)
     up = lapply(unique(yy_s[, c(panelID), with = F][[1]]), function(x){
       c = yy_s[eval(parse(text = panelID)) == x, ]$c
-      return(forecast::Arima(c[c > 0.44], order = c(2, 0, 0), include.mean = T))
+      return(forecast::Arima(c[c > quantile(c, 0.67)], order = c(2, 0, 0), include.mean = T))
     })
     mid = lapply(unique(yy_s[, c(panelID), with = F][[1]]), function(x){
       c = yy_s[eval(parse(text = panelID)) == x, ]$c
-      return(forecast::Arima(c[c <= 0.44 & c >= -0.44], order = c(2, 0, 0), include.mean = F))
+      return(forecast::Arima(c[c <= quantile(c, 0.67) & c >= quantile(c, 0.33)], order = c(2, 0, 0), include.mean = F))
     })
     names(mid) = unique(yy_s[, c(panelID), with = F][[1]])
     down = lapply(unique(yy_s[, c(panelID), with = F][[1]]), function(x){
       c = yy_s[eval(parse(text = panelID)) == x, ]$c
-      return(forecast::Arima(c[c < -0.44], order = c(2, 0, 0), include.mean = T))
+      return(forecast::Arima(c[c < quantile(c, 0.33)], order = c(2, 0, 0), include.mean = T))
     })
     names(up) = names(down) = unique(yy_s[, c(panelID), with = F][[1]])
     
