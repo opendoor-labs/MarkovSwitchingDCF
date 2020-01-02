@@ -799,8 +799,8 @@ ms_dcf_filter = function(y, model, plot = F){
     colnames(Ft) = colnames(sp$Ft[,, 1])
     
     dcf_loc = which(rownames(Ft) == "ct0")
-    means = unlist(yy_s[eval(parse(text = model$panelID)) == i, lapply(.SD, mean, na.rm = T), .SDcols = c(model$vars)])
-    sds = unlist(yy_s[eval(parse(text = model$panelID)) == i, lapply(.SD, sd, na.rm = T), .SDcols = c(model$vars)])
+    means = unlist(yy_d[eval(parse(text = model$panelID)) == i, lapply(.SD, mean, na.rm = T), .SDcols = c(model$vars)])
+    sds = unlist(yy_d[eval(parse(text = model$panelID)) == i, lapply(.SD, sd, na.rm = T), .SDcols = c(model$vars)])
     
     #Check fo convergence of Kt to steady state K
     K = matrix(ans$K[,, dim(ans$K)[3]], nrow(ans$K), ncol(ans$K))
