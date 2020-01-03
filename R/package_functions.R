@@ -418,12 +418,12 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
         theta["mu_d"] = -1
         for(j in c("p_uu", "p_mm", "p_dd")){
           if(grepl(j, names(theta))){
-            theta[j] = 0.95
+            theta[j] = 0.9
           }
         }
         for(j in names(theta)[grepl("p_", names(theta)) & !names(theta) %in% c("p_uu", "p_mm", "p_dd")]){
           if(grepl(j, names(theta))){
-            theta[j] = 0.025
+            theta[j] = 0.05
           }
         }
       }
