@@ -269,24 +269,24 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
     #Prior for the AR coefficients (phi)
     up = lapply(unique(yy_s[, c(panelID), with = F][[1]]), function(x){
       c = yy_s[eval(parse(text = panelID)) == x, ]$c
-      return(tryCatch(forecast::Arima(c[c > quantile(c, 0.67)], order = c(2, 0, 0), include.mean = T), 
-               error = function(err){
-                 forecast::Arima(diff(c[c > quantile(c, 0.67)]), order = c(2, 0, 0), include.mean = T)
-               }))
+      return(tryCatch(forecast::Arima(c[c > quantile(c, ifelse(n_states == 3, 0.67, 0.5))], order = c(2, 0, 0), include.mean = T), 
+                      error = function(err){
+                        forecast::Arima(diff(c[c > quantile(c, ifelse(n_states == 3, 0.67, 0.5))]), order = c(2, 0, 0), include.mean = T)
+                      }))
     })
     mid = lapply(unique(yy_s[, c(panelID), with = F][[1]]), function(x){
       c = yy_s[eval(parse(text = panelID)) == x, ]$c
-      return(tryCatch(forecast::Arima(c[c <= quantile(c, 0.67) & c >= quantile(c, 0.33)], order = c(2, 0, 0), include.mean = F), 
-             error = function(err){
-               forecast::Arima(diff(c[c <= quantile(c, 0.67) & c >= quantile(c, 0.33)]), order = c(2, 0, 0), include.mean = F)
-             }))
+      return(tryCatch(forecast::Arima(c[c <= quantile(c, ifelse(n_states == 3, 0.67, 0.5)) & c >= quantile(c, ifelse(n_states == 3, 0.33, 0.5))], order = c(2, 0, 0), include.mean = F), 
+                      error = function(err){
+                        forecast::Arima(diff(c[c <= quantile(c, ifelse(n_states == 3, 0.67, 0.5)) & c >= quantile(c, ifelse(n_states == 3, 0.33, 0.5))]), order = c(2, 0, 0), include.mean = F)
+                      }))
     })
     names(mid) = unique(yy_s[, c(panelID), with = F][[1]])
     down = lapply(unique(yy_s[, c(panelID), with = F][[1]]), function(x){
       c = yy_s[eval(parse(text = panelID)) == x, ]$c
-      return(tryCatch(forecast::Arima(c[c < quantile(c, 0.33)], order = c(2, 0, 0), include.mean = T), 
+      return(tryCatch(forecast::Arima(c[c < quantile(c, ifelse(n_states == 3, 0.33, 0.5))], order = c(2, 0, 0), include.mean = T), 
                       error = function(err){
-                        forecast::Arima(diff(c[c < quantile(c, 0.33)]), order = c(2, 0, 0), include.mean = T)
+                        forecast::Arima(diff(c[c < quantile(c, ifelse(n_states == 3, 0.33, 0.5))]), order = c(2, 0, 0), include.mean = T)
                       }))
     })
     names(up) = names(down) = unique(yy_s[, c(panelID), with = F][[1]])
@@ -294,9 +294,9 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
     theta = colMeans(do.call("rbind", lapply(names(up), function(x){
       c = yy_s[eval(parse(text = panelID)) == x, ]$c
       coeff = data.table::data.table(cbind(up = up[[x]]$coef, mid = c(mid[[x]]$coef, 0), down = down[[x]]$coef), keep.rownames = T)
-      coeff[, "m" := up*length(c[c > 0.44])/length(c) + 
-              mid*length(c[c <= 0.44 & c >= -0.44])/length(c) + 
-              down*length(c[c < -0.44])/length(c)]
+      coeff[, "m" := up*length(c[c > quantile(c, ifelse(n_states == 3, 0.67, 0.5))])/length(c) + 
+              mid*length(c[c <= quantile(c, ifelse(n_states == 3, 0.67, 0.5)) & c >= quantile(c, ifelse(n_states == 3, 0.33, 0.5))])/length(c) + 
+              down*length(c[c < quantile(c, ifelse(n_states == 3, 0.33, 0.5))])/length(c)]
       if(n_states > 1 & is.finite(n_states)){
         return(c(ar = coeff[grepl("ar", rn), ]$m, mu_u = coeff[rn == "intercept", ]$up, mu_d = coeff[rn == "intercept", ]$down))
       }else{
@@ -306,12 +306,12 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
     names(theta) = gsub("ar", "phi", names(theta))
     
     #Prior for the Markov-switching means and probabilities
-    yy_s[, "S_d" := ifelse(c < ifelse(n_states == 3, -0.44, 0), 1, 0)]
-    yy_s[, "S_u" := ifelse(c > ifelse(n_states == 3, 0.44, 0), 1, 0)]
+    yy_s[, "S_d" := ifelse(c < quantile(c, ifelse(n_states == 3, 0.33, 0.5)), 1, 0)]
+    yy_s[, "S_u" := ifelse(c > quantile(c, ifelse(n_states == 3, 0.67, 0.5)), 1, 0)]
     yy_s[, "S_dd" := ifelse(S_d == 1 & data.table::shift(S_d, type = "lead", n = 1) == 1, 1, 0)]
     yy_s[, "S_uu" := ifelse(S_u == 1 & data.table::shift(S_u, type = "lead", n = 1) == 1, 1, 0)]
     if(n_states == 3){
-      yy_s[, "S_m" := ifelse(c >= -0.44 & c <= 0.44, 1, 0)]
+      yy_s[, "S_m" := ifelse(c >= quantile(c, ifelse(n_states == 3, 0.33, 0.5)) & c <= quantile(c, ifelse(n_states == 3, 0.67, 0.5)), 1, 0)]
       yy_s[, "S_mm" := ifelse(S_m == 1 & data.table::shift(S_m, type = "lead", n = 1) == 1, 1, 0)]
     }
     
