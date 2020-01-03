@@ -639,7 +639,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
     stop("detect.diff must be T, F.")
   }
   if(!is.null(prior)){
-    if(!prior %in% c("estimate", "uninformative") | !all(is.numeric(prior))){
+    if(!all(prior %in% c("estimate", "uninformative")) | !all(is.numeric(prior))){
       stop("prior must be NULL or a named numeric verctor.")
     }
   }
