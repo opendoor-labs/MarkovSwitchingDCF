@@ -263,7 +263,7 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
   #Set the priors
   theta = NULL
   if(!all(is.numeric(prior))){
-    yy_s[complete.cases(yy_s), "c" := psych::fa(yy_s[, c(vars), with = F], nfactors = 1, rotate = "none", fm = "pa")$scores]
+    yy_s[complete.cases(yy_s), "c" := psych::fa(yy_s[, c(vars), with = F], nfactors = 1, rotate = "none", fm = "ml")$scores]
     yy_s[, "c" := imputeTS::na_kalman(c), by = c(panelID)]
     
     #Prior for the AR coefficients (phi)
@@ -414,6 +414,18 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
         theta[!names(theta) %in% paste0("gamma", 1:length(vars)) & grepl("gamma", names(theta))] = 0
         theta[grepl("psi", names(theta))] = 0
         theta[grepl("sigma", names(theta))] = 1
+        theta["mu_u"] = 1
+        theta["mu_d"] = -1
+        for(j in c("p_uu", "p_mm", "p_dd")){
+          if(grepl(j, names(theta))){
+            theta[j] = 0.95
+          }
+        }
+        for(j in names(theta)[grepl("p_", names(theta)) & !names(theta) %in% c("p_uu", "p_mm", "p_dd")]){
+          if(grepl(j, names(theta))){
+            theta[j] = 0.025
+          }
+        }
       }
     }
     if(ms_var == T & n_states > 1 & is.finite(n_states)){
