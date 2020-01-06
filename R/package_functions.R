@@ -20,12 +20,12 @@ SSmodel_ms = function(par, yt, n_states, ms_var = F, panelID = NULL, timeID = NU
   vars = vars[!vars %in% c(panelID, timeID)]
   phi = par[grepl("phi", names(par))]
   names(phi) = gsub("phi", "", names(phi))
-  gamma = par[grepl("gamma_", names(par))]
-  names(gamma) = gsub("gamma_", "", names(gamma))
-  psi = par[grepl("psi_", names(par))]
-  names(psi) = gsub("psi_", "", names(psi))
-  sig = par[grepl("sigma_", names(par))]
-  names(sig) = gsub("sigma_", "", names(sig))
+  gamma = par[grepl("gamma", names(par))]
+  names(gamma) = gsub("gamma", "", names(gamma))
+  psi = par[grepl("psi", names(par))]
+  names(psi) = gsub("psi", "", names(psi))
+  sig = par[grepl("sigma", names(par))]
+  names(sig) = gsub("sigma", "", names(sig))
   mu = par[grepl("mu", names(par))]
   names(mu) = gsub("mu_", "", names(mu))
   sd = par[grepl("sd", names(par))]
@@ -55,51 +55,49 @@ SSmodel_ms = function(par, yt, n_states, ms_var = F, panelID = NULL, timeID = NU
   #Build the transition equation matrix
   Fm = rbind(phi, c(1, 0))
   Fm = matrix(0, nrow = length(phi) + length(psi), ncol = length(phi) + length(psi))
-  rownames(Fm) = c("ct.0", "ct.1", unlist(lapply(paste0("e_", 1:length(vars)), function(x){paste0(x, ".", 0:1)})))
-  colnames(Fm) = c("ct.1", "ct.2", unlist(lapply(paste0("e_", 1:length(vars)), function(x){paste0(x, ".", 1:2)})))
+  rownames(Fm) = c("ct0", "ct1", unlist(lapply(paste0("e", 1:length(vars)), function(x){paste0(x, 0:1)})))
+  colnames(Fm) = c("ct1", "ct2", unlist(lapply(paste0("e", 1:length(vars)), function(x){paste0(x, 1:2)})))
   for(j in seq(1, nrow(Fm), 2)){
     Fm[j:(j + 1), j:(j + 1)] = t(matrix(c(c(phi, psi)[j:(j + 1)], 1, 0), nrow = 2, ncol = 2))
   }
   if(length(gamma) > length(vars)){
-    Fm = cbind(Fm[, 1:2], matrix(0, ncol = max(as.numeric(sapply(names(gamma)[!grepl("\\.0", names(gamma))], function(x){strsplit(x, "\\.")[[1]][2]}))) - 1, nrow = nrow(Fm)), Fm[, 3:ncol(Fm)])
-    Fm = rbind(Fm[1:2, ], matrix(0, ncol = ncol(Fm), nrow = max(as.numeric(sapply(names(gamma)[!grepl("\\.0", names(gamma))], function(x){strsplit(x, "\\.")[[1]][2]}))) - 1), Fm[3:nrow(Fm), ])
-    colnames(Fm)[colnames(Fm) == ""] = paste0("ct.", 3:(2 + length(colnames(Fm)[colnames(Fm) == ""])))
-    rownames(Fm)[rownames(Fm) == ""] = paste0("ct.", 2:(1 + length(rownames(Fm)[rownames(Fm) == ""])))
-    diag(Fm[paste0("ct.", 1:(max(as.numeric(sapply(names(gamma)[!grepl("\\.0", names(gamma))], function(x){strsplit(x, "\\.")[[1]][2]}))))), 
-            paste0("ct.", 1:(max(as.numeric(sapply(names(gamma)[!grepl("\\.0", names(gamma))], function(x){strsplit(x, "\\.")[[1]][2]})))))]) = 1
+    Fm = cbind(Fm[, 1:2], matrix(0, ncol = max(table(substr(names(gamma)[nchar(names(gamma)) == 2], 1, 1))) - 1, nrow = nrow(Fm)), Fm[, 3:ncol(Fm)])
+    Fm = rbind(Fm[1:2, ], matrix(0, ncol = ncol(Fm), nrow = max(table(substr(names(gamma)[nchar(names(gamma)) == 2], 1, 1))) - 1), Fm[3:nrow(Fm), ])
+    colnames(Fm)[colnames(Fm) == ""] = paste0("ct", 3:(2 + length(colnames(Fm)[colnames(Fm) == ""])))
+    rownames(Fm)[rownames(Fm) == ""] = paste0("ct", 2:(1 + length(rownames(Fm)[rownames(Fm) == ""])))
+    diag(Fm[paste0("ct", 1:(max(table(substr(names(gamma)[nchar(names(gamma)) == 2], 1, 1))))), paste0("ct", 1:(max(table(substr(names(gamma)[nchar(names(gamma)) == 2], 1, 1)))))]) = 1
   }
   if(is.infinite(n_states)){
     Fm = cbind(matrix(0, nrow = nrow(Fm), ncol = 1), Fm)
     Fm = rbind(matrix(0, nrow = 1, ncol = ncol(Fm)), Fm)
-    colnames(Fm)[1] = "mt.1"
-    rownames(Fm)[1] = "mt.0"
-    Fm[c("mt.0", "ct.0"), "mt.1"] = 1
+    colnames(Fm)[1] = "mt1"
+    rownames(Fm)[1] = "mt0"
+    Fm[c("mt0", "ct0"), "mt1"] = 1
   }
   Fm = array(Fm, dim = c(nrow(Fm), ncol(Fm), ifelse(is.infinite(n_states), 1, n_states)), dimnames = list(rownames(Fm), colnames(Fm), states))
   
   #Build the observation equation matrix
-  Hm = matrix(gamma[paste0(as.character(1:length(vars)), ".0")], ncol = 1, nrow = length(vars))
-  if (length(gamma) > length(vars)) {
-    mat = matrix(0, nrow = nrow(Hm), ncol =  max(as.numeric(sapply(names(gamma)[!grepl("\\.0", names(gamma))], function(x){strsplit(x, "\\.")[[1]][2]}))))
-    for (i in names(gamma[!names(gamma) %in% paste0(as.character(1:length(vars)), ".0")])) {
-      rc = as.numeric(strsplit(i, "\\.")[[1]])
+  Hm = matrix(gamma[as.character(1:length(vars))], ncol = 1, nrow = length(vars))
+  if(length(gamma) > length(vars)){
+    mat = matrix(0, nrow = nrow(Hm), ncol = max(table(substr(names(gamma)[nchar(names(gamma)) == 2], 1, 1))))
+    for(i in names(gamma[nchar(names(gamma)) == 2])){
+      rc = as.numeric(strsplit(i, "")[[1]])
       mat[rc[1], rc[2]] = gamma[i]
     }
     Hm = cbind(Hm, mat)
-  }else {
+  }else{
     Hm = cbind(Hm, matrix(0, ncol = 1, nrow = nrow(Hm)))
   }
   Hm = cbind(Hm, matrix(0, nrow = nrow(Hm), ncol = length(psi)))
   rownames(Hm) = vars
-  if (is.infinite(n_states)) {
+  if(is.infinite(n_states)){
     Hm = cbind(matrix(0, nrow = nrow(Hm), ncol = 1), Hm)
   }
   colnames(Hm) = rownames(Fm)
-  if (is.matrix(Hm[, grepl(paste0("e_", paste0(1:length(vars), ".0"), collapse = "|"), colnames(Hm))])) {
-    diag(Hm[, grepl(paste0("e_", paste0(1:length(vars), ".0"), collapse = "|"), colnames(Hm))]) = 1
-  }else {
-    Hm[, grepl(paste0("e_", paste0(1:length(vars), ".0"), collapse = "|"), 
-               colnames(Hm))] = 1
+  if(is.matrix(Hm[, grepl(paste0("e", paste0(1:length(vars), "0"), collapse = "|"), colnames(Hm))])) {
+    diag(Hm[, grepl(paste0("e", paste0(1:length(vars), "0"), collapse = "|"), colnames(Hm))]) = 1
+  }else{
+    Hm[, grepl(paste0("e", paste0(1:length(vars), "0"), collapse = "|"), colnames(Hm))] = 1
   }
   Hm = array(Hm, dim = c(nrow(Hm), ncol(Hm), ifelse(is.infinite(n_states), 1, n_states)), dimnames = list(rownames(Hm), colnames(Hm), states))
   
@@ -108,9 +106,9 @@ SSmodel_ms = function(par, yt, n_states, ms_var = F, panelID = NULL, timeID = NU
   Qm = matrix(0, ncol = ncol(Fm), nrow = nrow(Fm))
   rownames(Qm) = rownames(Fm)
   colnames(Qm) = rownames(Qm)
-  diag(Qm[c("ct.0", paste0("e_", 1:nrow(Hm), ".0")), c("ct.0", paste0("e_", 1:nrow(Hm), ".0"))]) = c(1, sig[names(sig) %in% as.character(1:nrow(Hm))]^2)
+  diag(Qm[c("ct0", paste0("e", 1:nrow(Hm), 0)), c("ct0", paste0("e", 1:nrow(Hm), 0))]) = c(1, sig[names(sig) %in% as.character(1:nrow(Hm))]^2)
   if (is.infinite(n_states)) {
-    Qm["mt.0", "mt.0"] = sig["M"]
+    Qm["mt0", "mt0"] = sig["M"]
   }
   Qm = array(Qm, dim = c(nrow(Qm), ncol(Qm), ifelse(is.infinite(n_states), 1, n_states)), dimnames = list(rownames(Qm), colnames(Qm), states))
   if(ms_var == T){
@@ -131,7 +129,7 @@ SSmodel_ms = function(par, yt, n_states, ms_var = F, panelID = NULL, timeID = NU
   Dm = array(Dm, dim = c(nrow(Dm), 1, ifelse(is.infinite(n_states), 1, n_states)), dimnames = list(rownames(Fm), NULL, states))
   if(length(mu) > 0){
     for(i in names(mu)){
-      Dm["ct.0", , i] = mu[i]
+      Dm["ct0", , i] = mu[i]
     }
   }
   
@@ -403,21 +401,21 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
       #Get the estimated coefficients
       idx = which(vars == z)
       coeff = c(fit$coefficients, fit2$coefficients)
-      names(coeff)[names(coeff) == "c"] = paste0("gamma_", idx, ".0")
-      names(coeff)[grepl("c\\.l", names(coeff))] = paste0(paste0("gamma_", idx), ".", 1:(length(names(coeff)[grepl("c\\.l", names(coeff))])))
-      names(coeff)[grepl("e\\.l", names(coeff))] = paste0(paste0("psi_", idx), ".", 1:length(names(coeff)[grepl("e\\.l", names(coeff))]))
+      names(coeff)[names(coeff) == "c"] = paste0("gamma", idx)
+      names(coeff)[grepl("c\\.l", names(coeff))] = paste0(paste0("gamma", idx), 1:(length(names(coeff)[grepl("c\\.l", names(coeff))])))
+      names(coeff)[grepl("e\\.l", names(coeff))] = paste0(paste0("psi", idx), 1:length(names(coeff)[grepl("e\\.l", names(coeff))]))
       
       #Get the sigma parameter
       coeff = c(coeff, summary(fit)$sigma)
-      names(coeff)[length(coeff)] = paste0("sigma_", idx)
+      names(coeff)[length(coeff)] = paste0("sigma", idx)
       return(coeff)
     })))
     if(!is.null(prior)){
       if(prior == "uninformative"){
-        theta[names(theta) %in% paste0("gamma_", 1:length(vars), ".0")] = 1
-        theta[!names(theta) %in% paste0("gamma_", 1:length(vars), ".0") & grepl("gamma", names(theta))] = 0
-        theta[grepl("psi_", names(theta))] = 0
-        theta[grepl("sigma_", names(theta))] = 1
+        theta[names(theta) %in% paste0("gamma", 1:length(vars))] = 1
+        theta[!names(theta) %in% paste0("gamma", 1:length(vars)) & grepl("gamma", names(theta))] = 0
+        theta[grepl("psi", names(theta))] = 0
+        theta[grepl("sigma", names(theta))] = 1
         theta["mu_u"] = 1
         theta["mu_d"] = -1
         for(j in c("p_uu", "p_mm", "p_dd")){
@@ -436,7 +434,7 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
       theta = c(theta, sd_ = c(1.5, 0.5))
       names(theta)[grepl("sd_", names(theta))] = paste0("sd_", c("d", "u"))
     }else if(is.infinite(n_states)){
-      theta["sigma_M"] = 1
+      theta["sigmaM"] = 1
     }
     suppressWarnings(rm(up, mid, down))
   }else{
@@ -463,7 +461,7 @@ set_constraints = function(yy_s, theta, n_states, panelID, timeID){
   #Set the constraints
   nseries = ncol(yy_s[, colnames(yy_s)[!colnames(yy_s) %in% c(panelID, timeID)], with = F])
   nrow = 2 + 2*nseries + 
-    length(theta[grepl("sigma_", names(theta))]) +
+    length(theta[grepl("sigma", names(theta))]) +
     ifelse(is.finite(n_states) & n_states > 1, 2*length(theta[grepl("p_", names(theta))]), 0) + 
     ifelse(is.finite(n_states) & n_states > 1, length(theta[grepl("mu_", names(theta))]), 0) +
     ifelse(is.finite(n_states) & n_states == 2, 4, ifelse(is.finite(n_states) & n_states == 3, 6, 0))
@@ -476,8 +474,8 @@ set_constraints = function(yy_s, theta, n_states, panelID, timeID){
   #-1 < sum(psi_i) < 1 & sigma > 0
   rn = 3
   for(i in 1:nseries){
-    ineqA[c(rn, rn + 1), colnames(ineqA)[grepl(paste0("psi_", i), colnames(ineqA))]] = c(1, -1)
-    ineqA[rn + 2, colnames(ineqA)[grepl(paste0("sigma_", i), colnames(ineqA))]] = 1
+    ineqA[c(rn, rn + 1), colnames(ineqA)[grepl(paste0("psi", i), colnames(ineqA))]] = c(1, -1)
+    ineqA[rn + 2, colnames(ineqA)[grepl(paste0("sigma", i), colnames(ineqA))]] = 1
     ineqB[c(rn, rn + 1), ] = 1
     rn = rn + 3
   }
@@ -514,6 +512,9 @@ set_constraints = function(yy_s, theta, n_states, panelID, timeID){
     ineqA[rn, which(colnames(ineqA) == "sigmaM")] = 1
     rn = rn + 1
   }
+  if("sigmaV" %in% names(theta)){
+    ineqA[rn , which(colnames(ineqA) == "sigmaV")] = 1
+  }
   
   #Make sure initial guesses are within the constraints
   if(any(ineqA %*% as.matrix(theta) + ineqB < 0)){
@@ -521,9 +522,9 @@ set_constraints = function(yy_s, theta, n_states, panelID, timeID){
     for(j in wh){
       wh_vars = names(which(ineqA[j, ] != 0))
       for(k in wh_vars){
-        if(grepl("phi|psi_|gamma_", k)){
+        if(grepl("phi|psi|gmma", k)){
           theta[k] = 0
-        }else if(grepl("sigma_", k)){
+        }else if(grepl("sigma", k)){
           theta[k] = 1
         }else if(k == "mu_d"){
           theta[k] = -1.5
@@ -832,7 +833,7 @@ ms_dcf_filter = function(y, model, plot = F){
     colnames(Ht) = rownames(Ft) = rownames(sp$Ft[,, 1])
     colnames(Ft) = colnames(sp$Ft[,, 1])
     
-    dcf_loc = which(rownames(Ft) == "ct.0")
+    dcf_loc = which(rownames(Ft) == "ct0")
     means = unlist(yy_d[eval(parse(text = model$panelID)) == i, lapply(.SD, mean, na.rm = T), .SDcols = c(model$vars)])
     sds = unlist(yy_d[eval(parse(text = model$panelID)) == i, lapply(.SD, sd, na.rm = T), .SDcols = c(model$vars)])
     
@@ -852,7 +853,7 @@ ms_dcf_filter = function(y, model, plot = F){
     initC = function(par){
       return(sum((as.matrix(Y1[nonna_idx, ]) - as.matrix(D[nonna_idx, ]) - matrix(Ht[nonna_idx, grepl("ct", colnames(Ht))], nrow = nrow(temp)) %*% matrix(par))^2))
     }
-    C10 = optim(par = rep(mean(Y1)/mean(model$coef[grepl("gamma_", names(model$coef))]), length(colnames(Ft)[grepl("ct", colnames(Ft))])), 
+    C10 = optim(par = rep(mean(Y1)/mean(model$coef[grepl("gamma", names(model$coef))]), length(colnames(Ft)[grepl("ct", colnames(Ft))])), 
                 fn = initC, method = "BFGS", control = list(trace = F))$par[1]
     
     toret = list()
@@ -872,7 +873,7 @@ ms_dcf_filter = function(y, model, plot = F){
       if(is.finite(model$n_states)){
         mutt = c(0, t(ans$D_tt[dcf_loc,,]))
       }else{
-        m_loc = which(rownames(Ft) == "mt.0")
+        m_loc = which(rownames(Ft) == "mt0")
         mutt = c(0, t(ans$B_tt[, m_loc]))
       }
       vartt = c(NA, ans$Q_tt[dcf_loc, dcf_loc, ])
