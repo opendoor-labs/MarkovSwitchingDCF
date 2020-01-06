@@ -421,12 +421,12 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
         theta["mu_u"] = 1
         theta["mu_d"] = -1
         for(j in c("p_uu", "p_mm", "p_dd")){
-          if(grepl(j, names(theta))){
+          if(j %in% names(theta)){
             theta[j] = 0.9
           }
         }
         for(j in names(theta)[grepl("p_", names(theta)) & !names(theta) %in% c("p_uu", "p_mm", "p_dd")]){
-          if(grepl(j, names(theta))){
+          if(j %in% names(theta)){
             theta[j] = 0.05
           }
         }
@@ -733,7 +733,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   cl = parallel::makeCluster(min(c(length(unique(yy_s[, c(panelID), with = F][[1]])), parallel::detectCores())))
   doSNOW::registerDoSNOW(cl)
   invisible(snow::clusterCall(cl, function(x) .libPaths(x), .libPaths()))
-  if(length(unique(yy_s[, c(model$panelID), with = F][[1]])) > 1){
+  if(length(unique(yy_s[, c(panelID), with = F][[1]])) > 1){
     `%fun%` = foreach::`%dopar%`
   }else{
     `%fun%` = foreach::`%do%`
