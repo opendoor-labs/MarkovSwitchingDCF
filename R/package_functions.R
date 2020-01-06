@@ -754,7 +754,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   snow::stopCluster(cl)
   return(list(coef = out$estimate, prior = theta, convergence = out$code, loglik = out$maximum, panelID = panelID, timeID = timeID,
               vars = vars, log.vars = log.vars, diff.vars = diff.vars, n_states = n_states, ms_var = ms_var,  level = level, freq = freq,
-              diff.lag = diff.lag, formulas = formulas, detect.diff = detect.diff, detect.growth = detect.growth, detect.formula = detect.formula))
+              diff.lag = diff.lag, detect.diff = detect.diff, detect.growth = detect.growth, detect.formula = detect.formula))
 }
 
 #' Kim filter (Hamilton + Kalman filter) an estimated model from ms_dcf_estim
