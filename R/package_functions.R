@@ -334,24 +334,28 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
     names(formulas) = vars
     
     if(detect.formula == T){
+      #max lags is the based on the number of paramters to be estimated per equation
+      max.lag = max(c(floor(nrow(yy_s)/30 - (length(which(gregexpr("e\\.", formulas[v])[[1]] > 0)) + 1)), 1))
+      
       c.lags = lapply(unique(yy_s[, c(panelID), with = F][[1]]), function(x){
         c.lag = unlist(lapply(vars, function(v){
-          
-          #max lags is the based on the number of paramters to be estimated per equation
-          max.lag = max(c(floor(nrow(yy_s)/30 - (length(which(gregexpr("e\\.", formulas[v])[[1]] > 0)) + 1)), 1))
-          ccf = TSA::prewhiten(x = yy_s[!is.na(c), ]$c, y =  yy_s[, c(v), with = F][[1]], plot = F)$ccf
-          
-          df = nrow(yy_s[complete.cases(yy_s), ]) - 2
-          critical.t = qt(level/2, df, lower.tail = F)
-          critical.r = sqrt((critical.t^2)/((critical.t^2) + df))
-          
-          ccf = data.table(lag = ccf$lag, value = ccf$acf, low = -abs(critical.r), up = abs(critical.r))
-          ccf = ccf[lag < 0 & (value > up | value < low), ]
-          if(nrow(ccf) == 0){
-            return(0)
-          }else{
-            return(min(c(max.lag, max(abs(ccf$lag)))))
-          }
+          max(sapply(vars[vars != v], function(z){
+            ccf = TSA::prewhiten(x = yy_s[, c(z), with = F][[1]],
+                                 y = yy_s[, c(v), with = F][[1]], plot = F)$ccf
+            
+            df = nrow(yy_s[complete.cases(yy_s), ]) - 2
+            critical.t = qt(level/2, df, lower.tail = F)
+            critical.r = sqrt((critical.t^2)/((critical.t^2) + df))
+            
+            ccf = data.table(lag = ccf$lag, value = ccf$acf, low = -abs(critical.r), up = abs(critical.r))
+            ccf = ccf[lag < 0 & (value > up | value < low), ]
+            if(nrow(ccf) == 0){
+              return(0)
+            }else{
+              return(min(c(max.lag, max(abs(ccf$lag)))))
+              # return(max(abs(ccf$lag)))
+            }
+          }))
         }))
         names(c.lag) = vars
         return(c.lag)
