@@ -476,7 +476,7 @@ set_constraints = function(yy_s, theta, n_states, panelID, timeID){
   #-1 < sum(psi_i) < 1 & sigma > 0
   rn = 3
   for(i in 1:nseries){
-    ineqA[c(rn, rn + 1), colnames(ineqA)[grepl(paste0("psi_", i), colnames(ineqA))]] = c(1, -1)
+    ineqA[c(rn, rn + 1), colnames(ineqA)[grepl(paste0("psi_", i, "\\."), colnames(ineqA))]] = c(1, -1)
     ineqA[rn + 2, colnames(ineqA)[grepl(paste0("sigma_", i), colnames(ineqA))]] = 1
     ineqB[c(rn, rn + 1), ] = 1
     rn = rn + 3
@@ -520,7 +520,7 @@ set_constraints = function(yy_s, theta, n_states, panelID, timeID){
   
   #Make sure initial guesses are within the constraints
   if(any(ineqA %*% as.matrix(theta) + ineqB < 0)){
-    wh = which(any(ineqA %*% as.matrix(theta) + ineqB < 0))
+    wh = which(ineqA %*% as.matrix(theta) + ineqB < 0)
     for(j in wh){
       wh_vars = names(which(ineqA[j, ] != 0))
       for(k in wh_vars){
