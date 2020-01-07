@@ -338,7 +338,7 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
         c.lag = unlist(lapply(vars, function(v){
           #max lags is the based on the number of paramters to be estimated per equation
           max.lag = max(c(floor(nrow(yy_s)/30 - (length(which(gregexpr("e\\.", formulas[v])[[1]] > 0)) + 1)), 1))
-          max(sapply(vars[vars != v], function(z){
+          return(max(sapply(vars[vars != v], function(z){
             ccf = TSA::prewhiten(x = yy_s[, c(z), with = F][[1]],
                                  y = yy_s[, c(v), with = F][[1]], plot = F)$ccf
             
@@ -354,7 +354,7 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
               return(min(c(max.lag, max(abs(ccf$lag)))))
               # return(max(abs(ccf$lag)))
             }
-          }))
+          })))
         }))
         names(c.lag) = vars
         return(c.lag)
@@ -419,12 +419,12 @@ set_priors = function(yy_s, prior, panelID, timeID, n_states = 2, ms_var = F, de
         theta["mu_u"] = 1
         theta["mu_d"] = -1
         for(j in c("p_uu", "p_mm", "p_dd")){
-          if(j %in% names(theta)){
+          if(grepl(j, names(theta))){
             theta[j] = 0.9
           }
         }
         for(j in names(theta)[grepl("p_", names(theta)) & !names(theta) %in% c("p_uu", "p_mm", "p_dd")]){
-          if(j %in% names(theta)){
+          if(grepl(j, names(theta))){
             theta[j] = 0.05
           }
         }
@@ -734,11 +734,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   cl = parallel::makeCluster(min(c(length(unique(yy_s[, c(panelID), with = F][[1]])), parallel::detectCores())))
   doSNOW::registerDoSNOW(cl)
   invisible(snow::clusterCall(cl, function(x) .libPaths(x), .libPaths()))
-  if(length(unique(yy_s[, c(panelID), with = F][[1]])) > 1){
-    `%fun%` = foreach::`%dopar%`
-  }else{
-    `%fun%` = foreach::`%do%`
-  }
+  `%fun%` = foreach::`%dopar%`
   
   #Get initial values for the filter
   sp = SSmodel_ms(theta, yy_s, n_states, ms_var, panelID, timeID)
@@ -757,7 +753,7 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   snow::stopCluster(cl)
   return(list(coef = out$estimate, prior = theta, convergence = out$code, loglik = out$maximum, panelID = panelID, timeID = timeID,
               vars = vars, log.vars = log.vars, diff.vars = diff.vars, n_states = n_states, ms_var = ms_var,  level = level, freq = freq,
-              diff.lag = diff.lag, detect.diff = detect.diff, detect.growth = detect.growth, detect.formula = detect.formula))
+              diff.lag = diff.lag, formulas = formulas, detect.diff = detect.diff, detect.growth = detect.growth, detect.formula = detect.formula))
 }
 
 #' Kim filter (Hamilton + Kalman filter) an estimated model from ms_dcf_estim
@@ -796,11 +792,7 @@ ms_dcf_filter = function(y, model, plot = F){
   cl = parallel::makeCluster(min(c(length(unique(yy_s[, c(model$panelID), with = F][[1]])), parallel::detectCores())))
   doSNOW::registerDoSNOW(cl)
   invisible(snow::clusterCall(cl, function(x) .libPaths(x), .libPaths()))
-  if(length(unique(yy_s[, c(model$panelID), with = F][[1]])) > 1){
-    `%fun%` = foreach::`%dopar%`
-  }else{
-    `%fun%` = foreach::`%do%`
-  }
+  `%fun%` = foreach::`%dopar%`
   
   #Get the unobserved components
   uc = foreach::foreach(i = unique(yy_s[, c(model$panelID), with = F][[1]]), .packages = c("data.table", "MASS"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother")) %fun% {
