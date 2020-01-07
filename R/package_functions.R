@@ -736,7 +736,11 @@ ms_dcf_estim = function(y, freq = NULL, panelID = NULL, timeID = NULL, level = 0
   cl = parallel::makeCluster(min(c(length(unique(yy_s[, c(panelID), with = F][[1]])), parallel::detectCores())))
   doSNOW::registerDoSNOW(cl)
   invisible(snow::clusterCall(cl, function(x) .libPaths(x), .libPaths()))
-  `%fun%` = foreach::`%dopar%`
+  if(length(unique(yy_s[, c(panelID), with = F][[1]])) > 1){
+    `%fun%` = foreach::`%dopar%`
+  }else{
+    `%fun%` = foreach::`%do%`
+  }
   
   #Get initial values for the filter
   sp = SSmodel_ms(theta, yy_s, n_states, ms_var, panelID, timeID)
@@ -794,7 +798,11 @@ ms_dcf_filter = function(y, model, plot = F){
   cl = parallel::makeCluster(min(c(length(unique(yy_s[, c(model$panelID), with = F][[1]])), parallel::detectCores())))
   doSNOW::registerDoSNOW(cl)
   invisible(snow::clusterCall(cl, function(x) .libPaths(x), .libPaths()))
-  `%fun%` = foreach::`%dopar%`
+  if(length(unique(yy_s[, c(model$panelID), with = F][[1]])) > 1){
+    `%fun%` = foreach::`%dopar%`
+  }else{
+    `%fun%` = foreach::`%do%`
+  }
   
   #Get the unobserved components
   uc = foreach::foreach(i = unique(yy_s[, c(model$panelID), with = F][[1]]), .packages = c("data.table", "MASS"), .export = c("SSmodel_ms", "kim_filter", "kim_smoother")) %fun% {
